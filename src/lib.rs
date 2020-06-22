@@ -2,6 +2,8 @@ use std::fmt;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use pin_project_lite::pin_project;
+
 pub use futures_core::{Future, Stream};
 pub use futures_io::{AsyncRead, AsyncSeek, AsyncWrite};
 
@@ -20,7 +22,6 @@ macro_rules! pin {
     ($($x:ident),* $(,)?) => {
         $(
             let mut $x = $x;
-
             #[allow(unused_mut)]
             let mut $x = unsafe {
                 std::pin::Pin::new_unchecked(&mut $x)
@@ -101,13 +102,16 @@ pub mod stream {
         }
     }
 
+    pin_project! {
     /// Stream for the [`unfold`] function.
     #[must_use = "streams do nothing unless polled"]
     pub struct Unfold<T, F, Fut> {
         f: F,
         state: Option<T>,
+        #[pin]
         fut: Option<Fut>,
     }
+            }
 
     impl<T, F, Fut> fmt::Debug for Unfold<T, F, Fut>
     where
@@ -130,24 +134,22 @@ pub mod stream {
         type Item = Item;
 
         fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            let mut this = unsafe { self.get_unchecked_mut() };
+            let mut this = self.project();
 
             if let Some(state) = this.state.take() {
-                this.fut = Some((this.f)(state));
+                this.fut.set(Some((this.f)(state)));
             }
 
-            let fut = unsafe {
-                Pin::new_unchecked(
-                    this.fut
-                        .as_mut()
-                        .expect("Unfold must not be polled after it returned `Poll::Ready(None)`"),
-                )
-            };
-            let step = futures_core::ready!(fut.poll(cx));
-            this.fut = None;
+            let step = ready!(this
+                .fut
+                .as_mut()
+                .as_pin_mut()
+                .expect("Unfold must not be polled after it returned `Poll::Ready(None)`")
+                .poll(cx));
+            this.fut.set(None);
 
             if let Some((item, next_state)) = step {
-                this.state = Some(next_state);
+                *this.state = Some(next_state);
                 Poll::Ready(Some(item))
             } else {
                 Poll::Ready(None)

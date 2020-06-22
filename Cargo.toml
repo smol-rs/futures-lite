@@ -13,3 +13,4 @@ std = []
 [dependencies]
 futures-core = "0.3.5"
 futures-io = { version = "0.3.5", default-features = false, features = ["std"] }
+pin-project-lite = "0.1.7"
