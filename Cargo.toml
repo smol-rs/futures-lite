@@ -3,7 +3,7 @@ name = "futures-lite"
 version = "0.1.1"
 authors = ["Stjepan Glavina <stjepang@gmail.com>"]
 edition = "2018"
-description = "A subset of the futures crate with some additions"
+description = "A lightweight async prelude"
 license = "Apache-2.0 OR MIT"
 
 [features]
@@ -13,4 +13,8 @@ std = []
 [dependencies]
 futures-core = "0.3.5"
 futures-io = { version = "0.3.5", default-features = false, features = ["std"] }
+memchr = "2.3.3"
 pin-project-lite = "0.1.7"
+
+[dev-dependencies]
+blocking = "0.4.6"
