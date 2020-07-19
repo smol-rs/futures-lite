@@ -9,7 +9,7 @@
 //! use futures_lite::*;
 //! use std::fs::File;
 //!
-//! fn main() -> Result<()> {
+//! fn main() -> io::Result<()> {
 //!     block_on(async {
 //!         let file = Unblock::new(File::open("a.txt")?);
 //!         let reader = io::BufReader::new(file);
@@ -30,7 +30,7 @@ use std::fmt;
 use std::future::Future;
 #[doc(no_inline)]
 pub use std::io::{Error, ErrorKind, Result, SeekFrom};
-use std::io::{IoSlice, IoSliceMut, Read};
+use std::io::{IoSlice, IoSliceMut};
 use std::mem;
 use std::pin::Pin;
 use std::str;
@@ -236,7 +236,7 @@ impl<R> BufReader<R> {
 
     /// Returns a reference to the internal buffer.
     ///
-    /// This function will not attempt to fill the buffer if it is empty.
+    /// This method will not attempt to fill the buffer if it is empty.
     ///
     /// # Examples
     ///
@@ -295,7 +295,7 @@ impl<R: AsyncRead> AsyncRead for BufReader<R> {
             return Poll::Ready(res);
         }
         let mut rem = ready!(self.as_mut().poll_fill_buf(cx))?;
-        let nread = Read::read(&mut rem, buf)?;
+        let nread = std::io::Read::read(&mut rem, buf)?;
         self.consume(nread);
         Poll::Ready(Ok(nread))
     }
@@ -312,7 +312,7 @@ impl<R: AsyncRead> AsyncRead for BufReader<R> {
             return Poll::Ready(res);
         }
         let mut rem = ready!(self.as_mut().poll_fill_buf(cx))?;
-        let nread = Read::read_vectored(&mut rem, bufs)?;
+        let nread = std::io::Read::read_vectored(&mut rem, bufs)?;
         self.consume(nread);
         Poll::Ready(Ok(nread))
     }
@@ -535,10 +535,11 @@ impl<W: AsyncWrite> BufWriter<W> {
     ///
     /// # blocking::block_on(async {
     /// let mut bytes = vec![1, 2, 3];
-    /// let writer = io::BufWriter::new(&mut bytes);
+    /// let mut writer = io::BufWriter::new(&mut bytes);
     ///
-    /// writer.write_all([4]).await?;
-    /// assert_eq!(writer.into_inner(), [1, 2, 3, 4]);
+    /// writer.write_all(&[4]).await?;
+    /// writer.flush().await?;
+    /// assert_eq!(writer.into_inner(), &[1, 2, 3, 4]);
     /// # std::io::Result::Ok(()) });
     /// ```
     pub fn into_inner(self) -> W {
@@ -556,7 +557,7 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// let writer = io::BufWriter::new(&mut bytes);
     ///
     /// // The internal buffer is empty until the first write request.
-    /// assert_eq!(reader.buffer(), &[]);
+    /// assert_eq!(writer.buffer(), &[]);
     /// ```
     pub fn buffer(&self) -> &[u8] {
         &self.buf
@@ -1011,11 +1012,11 @@ impl AsyncWrite for Sink {
     }
 }
 
-/// Allows reading from a buffered byte stream.
+/// Extension trait for [`AsyncBufRead`].
 pub trait AsyncBufReadExt: AsyncBufRead {
     /// Reads all bytes and appends them into `buf` until the delimiter `byte` or EOF is found.
     ///
-    /// This function will read bytes from the underlying stream until the delimiter or EOF is
+    /// This method will read bytes from the underlying stream until the delimiter or EOF is
     /// found. All bytes up to and including the delimiter (if found) will be appended to `buf`.
     ///
     /// If successful, returns the total number of bytes read.
@@ -1049,7 +1050,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
 
     /// Reads all bytes and appends them into `buf` until a newline (the 0xA byte) or EOF is found.
     ///
-    /// This function will read bytes from the underlying stream until the newline delimiter (the
+    /// This method will read bytes from the underlying stream until the newline delimiter (the
     /// 0xA byte) or EOF is found. All bytes up to, and including, the newline delimiter (if found)
     /// will be appended to `buf`.
     ///
@@ -1084,7 +1085,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
 
     /// Returns a stream over the lines of this byte stream.
     ///
-    /// The stream returned from this function yields items of type
+    /// The stream returned from this method yields items of type
     /// [`io::Result`][`crate::io::Result`]`<`[`String`]`>`.
     /// Each string returned will *not* have a newline byte (the 0xA byte) or CRLF (0xD, 0xA bytes)
     /// at the end.
@@ -1121,7 +1122,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
 
     /// Returns a stream over the contents of this reader split on the specified `byte`.
     ///
-    /// The stream returned from this function yields items of type
+    /// The stream returned from this method yields items of type
     /// [`io::Result`][`crate::io::Result`]`<`[`Vec<u8>`][`Vec`]`>`.
     /// Each vector returned will *not* have the delimiter byte at the end.
     ///
@@ -1162,6 +1163,8 @@ pub struct ReadUntilFuture<'a, T: Unpin + ?Sized> {
     buf: &'a mut Vec<u8>,
     read: usize,
 }
+
+impl<T: Unpin + ?Sized> Unpin for ReadUntilFuture<'_, T> {}
 
 impl<T: AsyncBufRead + Unpin + ?Sized> Future for ReadUntilFuture<'_, T> {
     type Output = Result<usize>;
@@ -1214,6 +1217,8 @@ pub struct ReadLineFuture<'a, T: Unpin + ?Sized> {
     bytes: Vec<u8>,
     read: usize,
 }
+
+impl<T: Unpin + ?Sized> Unpin for ReadLineFuture<'_, T> {}
 
 impl<T: AsyncBufRead + Unpin + ?Sized> Future for ReadLineFuture<'_, T> {
     type Output = Result<usize>;
@@ -1341,7 +1346,36 @@ impl<R: AsyncBufRead> Stream for Split<R> {
     }
 }
 
+/// Extension trait for [`AsyncRead`].
 pub trait AsyncReadExt: AsyncRead {
+    /// Reads some bytes from the byte stream.
+    ///
+    /// On success, returns the total number of bytes read.
+    ///
+    /// If the return value is `Ok(n)`, then it must be guaranteed that
+    /// `0 <= n <= buf.len()`. A nonzero `n` value indicates that the buffer has been
+    /// filled with `n` bytes of data. If `n` is `0`, then it can indicate one of two
+    /// scenarios:
+    ///
+    /// 1. This reader has reached its "end of file" and will likely no longer be able to
+    ///    produce bytes. Note that this does not mean that the reader will always no
+    ///    longer be able to produce bytes.
+    /// 2. The buffer specified was 0 bytes in length.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut file = Unblock::new(File::open("a.txt")?);
+    ///
+    /// let mut buf = vec![0; 1024];
+    /// let n = file.read(&mut buf).await?;
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn read<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadFuture<'a, Self>
     where
         Self: Unpin,
@@ -1349,6 +1383,11 @@ pub trait AsyncReadExt: AsyncRead {
         ReadFuture { reader: self, buf }
     }
 
+    /// Like [`read()`][`AsyncReadExt::read()`], except it reads into a slice of buffers.
+    ///
+    /// Data is copied to fill each buffer in order, with the final buffer possibly being
+    /// only partially filled. This method must behave same as a single call to
+    /// [`read()`][`AsyncReadExt::read()`] with the buffers concatenated would.
     fn read_vectored<'a>(
         &'a mut self,
         bufs: &'a mut [IoSliceMut<'a>],
@@ -1419,6 +1458,23 @@ pub trait AsyncReadExt: AsyncRead {
         }
     }
 
+    /// Reads the exact number of bytes required to fill `buf`.
+    ///
+    /// On success, returns the total number of bytes read.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut reader = io::Cursor::new(&b"hello");
+    /// let mut contents = vec![0; 3];
+    ///
+    /// reader.read_exact(&mut contents).await?;
+    /// assert_eq!(contents, b"hel");
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn read_exact<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadExactFuture<'a, Self>
     where
         Self: Unpin,
@@ -1426,6 +1482,25 @@ pub trait AsyncReadExt: AsyncRead {
         ReadExactFuture { reader: self, buf }
     }
 
+    /// Creates an adapter which will read at most `limit` bytes from it.
+    ///
+    /// This method returns a new instance of [`AsyncRead`] which will read at most
+    /// `limit` bytes, after which it will always return `Ok(0)` indicating EOF.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut reader = io::Cursor::new(&b"hello");
+    /// let mut contents = String::new();
+    ///
+    /// let n = reader.take(3).read_to_string(&mut contents).await?;
+    /// assert_eq!(n, 3);
+    /// assert_eq!(contents, "hel");
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn take(self, limit: u64) -> Take<Self>
     where
         Self: Sized,
@@ -1433,6 +1508,22 @@ pub trait AsyncReadExt: AsyncRead {
         Take { inner: self, limit }
     }
 
+    /// Converts this [`AsyncRead`] into a [`Stream`] of bytes.
+    ///
+    /// The returned type implements [`Stream`] where `Item` is `io::Result<u8>`.
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let reader = io::Cursor::new(&b"hello");
+    /// let mut bytes = reader.bytes();
+    ///
+    /// while let Some(byte) = bytes.next().await {
+    ///     println!("byte: {}", byte?);
+    /// }
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn bytes(self) -> Bytes<Self>
     where
         Self: Sized,
@@ -1440,7 +1531,27 @@ pub trait AsyncReadExt: AsyncRead {
         Bytes { inner: self }
     }
 
-    fn chain<R: Read>(self, next: R) -> Chain<Self, R>
+    /// Creates an adapter which will chain this stream with another.
+    ///
+    /// The returned [`AsyncRead`] instance will first read all bytes from this reader
+    /// until EOF is found, and then continue with `next`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let r1 = io::Cursor::new(&b"hello");
+    /// let r2 = io::Cursor::new(&b"world");
+    /// let mut reader = r1.chain(r2);
+    ///
+    /// let mut contents = String::new();
+    /// reader.read_to_string(&mut contents).await?;
+    /// assert_eq!(contents, "helloworld");
+    /// # std::io::Result::Ok(()) });
+    /// ```
+    fn chain<R: AsyncRead>(self, next: R) -> Chain<Self, R>
     where
         Self: Sized,
     {
@@ -1455,10 +1566,13 @@ pub trait AsyncReadExt: AsyncRead {
 impl<R: AsyncRead + ?Sized> AsyncReadExt for R {}
 
 /// Future for the [`AsyncReadExt::read()`] method.
+#[derive(Debug)]
 pub struct ReadFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut [u8],
 }
+
+impl<T: Unpin + ?Sized> Unpin for ReadFuture<'_, T> {}
 
 impl<T: AsyncRead + Unpin + ?Sized> Future for ReadFuture<'_, T> {
     type Output = Result<usize>;
@@ -1470,10 +1584,13 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadFuture<'_, T> {
 }
 
 /// Future for the [`AsyncReadExt::read_vectored()`] method.
+#[derive(Debug)]
 pub struct ReadVectoredFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     bufs: &'a mut [IoSliceMut<'a>],
 }
+
+impl<T: Unpin + ?Sized> Unpin for ReadVectoredFuture<'_, T> {}
 
 impl<T: AsyncRead + Unpin + ?Sized> Future for ReadVectoredFuture<'_, T> {
     type Output = Result<usize>;
@@ -1485,11 +1602,14 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadVectoredFuture<'_, T> {
 }
 
 /// Future for the [`AsyncReadExt::read_to_end()`] method.
+#[derive(Debug)]
 pub struct ReadToEndFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut Vec<u8>,
     start_len: usize,
 }
+
+impl<T: Unpin + ?Sized> Unpin for ReadToEndFuture<'_, T> {}
 
 impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToEndFuture<'_, T> {
     type Output = Result<usize>;
@@ -1505,12 +1625,15 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToEndFuture<'_, T> {
 }
 
 /// Future for the [`AsyncReadExt::read_to_string()`] method.
+#[derive(Debug)]
 pub struct ReadToStringFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut String,
     bytes: Vec<u8>,
     start_len: usize,
 }
+
+impl<T: Unpin + ?Sized> Unpin for ReadToStringFuture<'_, T> {}
 
 impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToStringFuture<'_, T> {
     type Output = Result<usize>;
@@ -1595,10 +1718,13 @@ fn read_to_end_internal<R: AsyncRead + ?Sized>(
 }
 
 /// Future for the [`AsyncReadExt::read_exact()`] method.
+#[derive(Debug)]
 pub struct ReadExactFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut [u8],
 }
+
+impl<T: Unpin + ?Sized> Unpin for ReadExactFuture<'_, T> {}
 
 impl<T: AsyncRead + Unpin + ?Sized> Future for ReadExactFuture<'_, T> {
     type Output = Result<()>;
@@ -1631,105 +1757,56 @@ pin_project! {
 }
 
 impl<T> Take<T> {
-    /// Returns the number of bytes that can be read before this instance will
-    /// return EOF.
+    /// Returns the number of bytes before this adapter will return EOF.
     ///
-    /// # Note
-    ///
-    /// This instance may reach `EOF` after reading fewer bytes than indicated by
-    /// this method if the underlying [`Read`] instance reaches EOF.
+    /// Note that EOF may be reached sooner if the underlying reader is shorter than the limit.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::fs::File;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let f = File::open("foo.txt").await?;
+    /// let reader = io::Cursor::new("hello");
     ///
-    /// // read at most five bytes
-    /// let handle = f.take(5);
-    ///
-    /// println!("limit: {}", handle.limit());
-    /// #
-    /// #     Ok(()) }) }
+    /// let reader = reader.take(3);
+    /// assert_eq!(reader.limit(), 3);
     /// ```
     pub fn limit(&self) -> u64 {
         self.limit
     }
 
-    /// Sets the number of bytes that can be read before this instance will
-    /// return EOF. This is the same as constructing a new `Take` instance, so
-    /// the amount of bytes read and the previous limit value don't matter when
-    /// calling this method.
+    /// Puts a limit on the number of bytes.
+    ///
+    /// Changing the limit is equivalent to creating a new adapter with [`AsyncReadExt::take()`].
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::fs::File;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let f = File::open("foo.txt").await?;
+    /// let reader = io::Cursor::new("hello");
     ///
-    /// // read at most five bytes
-    /// let mut handle = f.take(5);
-    /// handle.set_limit(10);
+    /// let mut reader = reader.take(10);
+    /// assert_eq!(reader.limit(), 10);
     ///
-    /// assert_eq!(handle.limit(), 10);
-    /// #
-    /// # Ok(()) }) }
+    /// reader.set_limit(3);
+    /// assert_eq!(reader.limit(), 3);
     /// ```
     pub fn set_limit(&mut self, limit: u64) {
         self.limit = limit;
-    }
-
-    /// Consumes the `Take`, returning the wrapped reader.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::fs::File;
-    ///
-    /// let file = File::open("foo.txt").await?;
-    ///
-    /// let mut buffer = [0; 5];
-    /// let mut handle = file.take(5);
-    /// handle.read(&mut buffer).await?;
-    ///
-    /// let file = handle.into_inner();
-    /// #
-    /// # Ok(()) }) }
-    /// ```
-    pub fn into_inner(self) -> T {
-        self.inner
     }
 
     /// Gets a reference to the underlying reader.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::fs::File;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let file = File::open("foo.txt").await?;
+    /// let reader = io::Cursor::new("hello");
     ///
-    /// let mut buffer = [0; 5];
-    /// let mut handle = file.take(5);
-    /// handle.read(&mut buffer).await?;
-    ///
-    /// let file = handle.get_ref();
-    /// #
-    /// # Ok(()) }) }
+    /// let reader = reader.take(3);
+    /// let r = reader.get_ref();
     /// ```
     pub fn get_ref(&self) -> &T {
         &self.inner
@@ -1737,35 +1814,38 @@ impl<T> Take<T> {
 
     /// Gets a mutable reference to the underlying reader.
     ///
-    /// Care should be taken to avoid modifying the internal I/O state of the
-    /// underlying reader as doing so may corrupt the internal limit of this
-    /// `Take`.
-    ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::fs::File;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let file = File::open("foo.txt").await?;
+    /// let reader = io::Cursor::new("hello");
     ///
-    /// let mut buffer = [0; 5];
-    /// let mut handle = file.take(5);
-    /// handle.read(&mut buffer).await?;
-    ///
-    /// let file = handle.get_mut();
-    /// #
-    /// # Ok(()) }) }
+    /// let mut reader = reader.take(3);
+    /// let r = reader.get_mut();
     /// ```
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.inner
     }
+
+    /// Unwraps the adapter, returning the underlying reader.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader = io::Cursor::new("hello");
+    ///
+    /// let reader = reader.take(3);
+    /// let reader = reader.into_inner();
+    /// ```
+    pub fn into_inner(self) -> T {
+        self.inner
+    }
 }
 
 impl<T: AsyncRead> AsyncRead for Take<T> {
-    /// Attempt to read from the `AsyncRead` into `buf`.
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -1860,74 +1940,55 @@ pin_project! {
 }
 
 impl<T, U> Chain<T, U> {
-    /// Consumes the `Chain`, returning the wrapped readers.
+    /// Gets references to the underlying readers.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::fs::File;
-    ///
-    /// let foo_file = File::open("foo.txt").await?;
-    /// let bar_file = File::open("bar.txt").await?;
-    ///
-    /// let chain = foo_file.chain(bar_file);
-    /// let (foo_file, bar_file) = chain.into_inner();
-    /// #
-    /// # Ok(()) }) }
     /// ```
-    pub fn into_inner(self) -> (T, U) {
-        (self.first, self.second)
-    }
-
-    /// Gets references to the underlying readers in this `Chain`.
+    /// use futures_lite::*;
     ///
-    /// # Examples
+    /// let r1 = io::Cursor::new(b"hello");
+    /// let r2 = io::Cursor::new(b"world");
     ///
-    /// ```no_run
-    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::fs::File;
-    ///
-    /// let foo_file = File::open("foo.txt").await?;
-    /// let bar_file = File::open("bar.txt").await?;
-    ///
-    /// let chain = foo_file.chain(bar_file);
-    /// let (foo_file, bar_file) = chain.get_ref();
-    /// #
-    /// # Ok(()) }) }
+    /// let reader = r1.chain(r2);
+    /// let (r1, r2) = reader.get_ref();
     /// ```
     pub fn get_ref(&self) -> (&T, &U) {
         (&self.first, &self.second)
     }
 
-    /// Gets mutable references to the underlying readers in this `Chain`.
-    ///
-    /// Care should be taken to avoid modifying the internal I/O state of the
-    /// underlying readers as doing so may corrupt the internal state of this
-    /// `Chain`.
+    /// Gets mutable references to the underlying readers.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::fs::File;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let foo_file = File::open("foo.txt").await?;
-    /// let bar_file = File::open("bar.txt").await?;
+    /// let r1 = io::Cursor::new(b"hello");
+    /// let r2 = io::Cursor::new(b"world");
     ///
-    /// let mut chain = foo_file.chain(bar_file);
-    /// let (foo_file, bar_file) = chain.get_mut();
-    /// #
-    /// # Ok(()) }) }
+    /// let mut reader = r1.chain(r2);
+    /// let (r1, r2) = reader.get_mut();
     /// ```
     pub fn get_mut(&mut self) -> (&mut T, &mut U) {
         (&mut self.first, &mut self.second)
+    }
+
+    /// Unwraps the adapter, returning the underlying readers.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let r1 = io::Cursor::new(b"hello");
+    /// let r2 = io::Cursor::new(b"world");
+    ///
+    /// let reader = r1.chain(r2);
+    /// let (r1, r2) = reader.into_inner();
+    /// ```
+    pub fn into_inner(self) -> (T, U) {
+        (self.first, self.second)
     }
 }
 
@@ -2002,12 +2063,29 @@ impl<T: AsyncBufRead, U: AsyncBufRead> AsyncBufRead for Chain<T, U> {
     }
 }
 
+/// Extension trait for [`AsyncSeek`].
 pub trait AsyncSeekExt: AsyncSeek {
-    /// Creates a future which will seek an IO object, and then yield the
-    /// new position in the object and the object itself.
+    /// Seeks to a new position in a byte stream.
     ///
-    /// In the case of an error the buffer and the object will be discarded, with
-    /// the error yielded.
+    /// Returns the new position in the byte stream.
+    ///
+    /// A seek beyond the end of stream is allowed, but behavior is defined by the implementation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut cursor = io::Cursor::new("hello");
+    ///
+    /// // Move the cursor to the end.
+    /// cursor.seek(io::SeekFrom::End(0)).await?;
+    ///
+    /// // Check the current position.
+    /// assert_eq!(cursor.seek(io::SeekFrom::Current(0)).await?, 5);
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn seek(&mut self, pos: SeekFrom) -> SeekFuture<'_, Self>
     where
         Self: Unpin,
@@ -2019,10 +2097,13 @@ pub trait AsyncSeekExt: AsyncSeek {
 impl<S: AsyncSeek + ?Sized> AsyncSeekExt for S {}
 
 /// Future for the [`AsyncSeekExt::seek()`] method.
+#[derive(Debug)]
 pub struct SeekFuture<'a, T: Unpin + ?Sized> {
     seeker: &'a mut T,
     pos: SeekFrom,
 }
+
+impl<T: Unpin + ?Sized> Unpin for SeekFuture<'_, T> {}
 
 impl<T: AsyncSeek + Unpin + ?Sized> Future for SeekFuture<'_, T> {
     type Output = Result<u64>;
@@ -2033,7 +2114,29 @@ impl<T: AsyncSeek + Unpin + ?Sized> Future for SeekFuture<'_, T> {
     }
 }
 
+/// Extension trait for [`AsyncWrite`].
 pub trait AsyncWriteExt: AsyncWrite {
+    /// Writes some bytes into the byte stream.
+    ///
+    /// Returns the number of bytes written from the start of the buffer.
+    ///
+    /// If the return value is `Ok(n)` then it must be guaranteed that
+    /// `0 <= n <= buf.len()`. A return value of `0` typically means that the underlying
+    /// object is no longer able to accept bytes and will likely not be able to in the
+    /// future as well, or that the provided buffer is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut file = Unblock::new(File::create("a.txt")?);
+    /// let n = file.write(b"hello").await?;
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn write<'a>(&'a mut self, buf: &'a [u8]) -> WriteFuture<'a, Self>
     where
         Self: Unpin,
@@ -2041,13 +2144,11 @@ pub trait AsyncWriteExt: AsyncWrite {
         WriteFuture { writer: self, buf }
     }
 
-    fn flush(&mut self) -> FlushFuture<'_, Self>
-    where
-        Self: Unpin,
-    {
-        FlushFuture { writer: self }
-    }
-
+    /// Like [`write()`][`AsyncWriteExt::write()`], except that it writes a slice of buffers.
+    ///
+    /// Data is copied from each buffer in order, with the final buffer possibly being only
+    /// partially consumed. This method must behave same as a call to
+    /// [`write()`][`AsyncWriteExt::write()`] with the buffers concatenated would.
     fn write_vectored<'a>(&'a mut self, bufs: &'a [IoSlice<'a>]) -> WriteVectoredFuture<'a, Self>
     where
         Self: Unpin,
@@ -2055,21 +2156,64 @@ pub trait AsyncWriteExt: AsyncWrite {
         WriteVectoredFuture { writer: self, bufs }
     }
 
+    /// Writes an entire buffer into the byte stream.
+    ///
+    /// This method will keep calling [`write()`][`AsyncWriteExt::write()`] until there is no more
+    /// data to be written or an error occurs. It will not return before the entire buffer is
+    /// successfully written or an error occurs.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut file = Unblock::new(File::create("a.txt")?);
+    /// let n = file.write_all(b"hello").await?;
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn write_all<'a>(&'a mut self, buf: &'a [u8]) -> WriteAllFuture<'a, Self>
     where
         Self: Unpin,
     {
         WriteAllFuture { writer: self, buf }
     }
+
+    /// Flushes the stream to ensure that all buffered contents reach their destination.
+    //
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut file = Unblock::new(File::create("a.txt")?);
+    /// file.write_all(b"hello").await?;
+    /// file.flush().await?;
+    /// # std::io::Result::Ok(()) });
+    /// ```
+    fn flush(&mut self) -> FlushFuture<'_, Self>
+    where
+        Self: Unpin,
+    {
+        FlushFuture { writer: self }
+    }
 }
 
 impl<R: AsyncWrite + ?Sized> AsyncWriteExt for R {}
 
 /// Future for the [`AsyncWriteExt::write()`] method.
+#[derive(Debug)]
 pub struct WriteFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     buf: &'a [u8],
 }
+
+impl<T: Unpin + ?Sized> Unpin for WriteFuture<'_, T> {}
 
 impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteFuture<'_, T> {
     type Output = Result<usize>;
@@ -2080,24 +2224,14 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteFuture<'_, T> {
     }
 }
 
-/// Future for the [`AsyncWriteExt::flush()`] method.
-pub struct FlushFuture<'a, T: Unpin + ?Sized> {
-    writer: &'a mut T,
-}
-
-impl<T: AsyncWrite + Unpin + ?Sized> Future for FlushFuture<'_, T> {
-    type Output = Result<()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut *self.writer).poll_flush(cx)
-    }
-}
-
 /// Future for the [`AsyncWriteExt::write_vectored()`] method.
+#[derive(Debug)]
 pub struct WriteVectoredFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     bufs: &'a [IoSlice<'a>],
 }
+
+impl<T: Unpin + ?Sized> Unpin for WriteVectoredFuture<'_, T> {}
 
 impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteVectoredFuture<'_, T> {
     type Output = Result<usize>;
@@ -2109,10 +2243,13 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteVectoredFuture<'_, T> {
 }
 
 /// Future for the [`AsyncWriteExt::write_all()`] method.
+#[derive(Debug)]
 pub struct WriteAllFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     buf: &'a [u8],
 }
+
+impl<T: Unpin + ?Sized> Unpin for WriteAllFuture<'_, T> {}
 
 impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteAllFuture<'_, T> {
     type Output = Result<()>;
@@ -2131,5 +2268,21 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteAllFuture<'_, T> {
         }
 
         Poll::Ready(Ok(()))
+    }
+}
+
+/// Future for the [`AsyncWriteExt::flush()`] method.
+#[derive(Debug)]
+pub struct FlushFuture<'a, T: Unpin + ?Sized> {
+    writer: &'a mut T,
+}
+
+impl<T: Unpin + ?Sized> Unpin for FlushFuture<'_, T> {}
+
+impl<T: AsyncWrite + Unpin + ?Sized> Future for FlushFuture<'_, T> {
+    type Output = Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut *self.writer).poll_flush(cx)
     }
 }

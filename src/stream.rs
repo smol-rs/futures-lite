@@ -6,7 +6,7 @@
 //! use futures_lite::*;
 //!
 //! # blocking::block_on(async {
-//! let s = stream::iter(vec![1, 2, 3]);
+//! let mut s = stream::iter(vec![1, 2, 3]);
 //!
 //! assert_eq!(s.next().await, Some(1));
 //! assert_eq!(s.next().await, Some(2));
@@ -17,6 +17,7 @@
 
 // TODO: future() constructor that converts a future to a stream
 // TODO: merge() constructor (randomized for fairness)
+// TODO: all other missing stream combinators
 
 use std::fmt;
 use std::future::Future;
@@ -484,7 +485,7 @@ where
     }
 }
 
-/// Extension trait for [`Stream`] with a variety of combinators.
+/// Extension trait for [`Stream`].
 pub trait StreamExt: Stream {
     /// Retrieves the next item in the stream.
     ///
@@ -566,6 +567,7 @@ pub trait StreamExt: Stream {
 impl<T: ?Sized> StreamExt for T where T: Stream {}
 
 /// Future for the [`StreamExt::next()`] method.
+#[derive(Debug)]
 pub struct NextFuture<'a, T: Unpin + ?Sized> {
     stream: &'a mut T,
 }

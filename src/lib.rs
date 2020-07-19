@@ -7,7 +7,6 @@
 //! it.
 //!
 //! [futures]: https://docs.rs/futures
-//! [blocking]: https://docs.rs/futures
 //!
 //! # Examples
 //!

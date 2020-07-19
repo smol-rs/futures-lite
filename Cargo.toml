@@ -5,10 +5,12 @@ authors = ["Stjepan Glavina <stjepang@gmail.com>"]
 edition = "2018"
 description = "A lightweight async prelude"
 license = "Apache-2.0 OR MIT"
-
-[features]
-default = ["std"]
-std = []
+repository = "https://github.com/stjepang/futures-lite"
+homepage = "https://github.com/stjepang/futures-lite"
+documentation = "https://docs.rs/futures-lite"
+keywords = ["asynchronous", "futures", "async"]
+categories = ["asynchronous", "concurrency"]
+readme = "README.md"
 
 [dependencies]
 futures-core = "0.3.5"
@@ -17,5 +19,5 @@ memchr = "2.3.3"
 pin-project-lite = "0.1.7"
 
 [dev-dependencies]
-blocking = "0.4.6"
 async-net = "0.1.0"
+blocking = "0.4.6"
