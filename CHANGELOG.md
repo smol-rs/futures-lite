@@ -1,3 +1,7 @@
+# Version 0.1.5
+
+- Add `fold()` and `try_fold()`.
+
 # Version 0.1.4
 
 - Add `future::race()`.
