@@ -16,7 +16,7 @@
 //! ```
 
 // TODO: race(), race!, try_race(), try_race! (randomized for fairness)
-// TODO: join(), join!, try_join(), try_join!
+// TODO: join!, try_join!
 
 use std::fmt;
 #[doc(no_inline)]
@@ -224,6 +224,164 @@ impl Future for YieldNow {
             Poll::Pending
         } else {
             Poll::Ready(())
+        }
+    }
+}
+
+/// Joins two futures, waiting for both to complete.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// # blocking::block_on(async {
+/// let a = async { 1 };
+/// let b = async { 2 };
+///
+/// assert_eq!(future::join(a, b).await, (1, 2));
+/// # })
+/// ```
+pub fn join<Fut1, Fut2>(future1: Fut1, future2: Fut2) -> Join<Fut1, Fut2>
+where
+    Fut1: Future,
+    Fut2: Future,
+{
+    Join {
+        future1: future1,
+        output1: None,
+        future2: future2,
+        output2: None,
+    }
+}
+
+pin_project! {
+    /// Future for the [`join()`] function.
+    #[derive(Debug)]
+    pub struct Join<Fut1, Fut2>
+    where
+        Fut1: Future,
+        Fut2: Future,
+    {
+        #[pin]
+        future1: Fut1,
+        output1: Option<Fut1::Output>,
+        #[pin]
+        future2: Fut2,
+        output2: Option<Fut2::Output>,
+    }
+}
+
+impl<Fut1, Fut2> Future for Join<Fut1, Fut2>
+where
+    Fut1: Future,
+    Fut2: Future,
+{
+    type Output = (Fut1::Output, Fut2::Output);
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+
+        if this.output1.is_none() {
+            if let Poll::Ready(out) = this.future1.poll(cx) {
+                *this.output1 = Some(out);
+            }
+        }
+
+        if this.output2.is_none() {
+            if let Poll::Ready(out) = this.future2.poll(cx) {
+                *this.output2 = Some(out);
+            }
+        }
+
+        if this.output1.is_some() && this.output2.is_some() {
+            Poll::Ready((this.output1.take().unwrap(), this.output2.take().unwrap()))
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+/// Joins two fallible futures, waiting for both to complete or one of them to error.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// # blocking::block_on(async {
+/// let a = async { Ok::<i32, i32>(1) };
+/// let b = async { Err::<i32, i32>(2) };
+///
+/// assert_eq!(future::try_join(a, b).await, Err(2));
+/// # })
+/// ```
+pub fn try_join<T1, T2, E, Fut1, Fut2>(future1: Fut1, future2: Fut2) -> TryJoin<Fut1, Fut2>
+where
+    Fut1: Future<Output = Result<T1, E>>,
+    Fut2: Future<Output = Result<T2, E>>,
+{
+    TryJoin {
+        future1: future1,
+        output1: None,
+        future2: future2,
+        output2: None,
+    }
+}
+
+pin_project! {
+    /// Future for the [`try_join()`] function.
+    #[derive(Debug)]
+    pub struct TryJoin<Fut1, Fut2>
+    where
+        Fut1: Future,
+        Fut2: Future,
+    {
+        #[pin]
+        future1: Fut1,
+        output1: Option<Fut1::Output>,
+        #[pin]
+        future2: Fut2,
+        output2: Option<Fut2::Output>,
+    }
+}
+
+impl<T1, T2, E, Fut1, Fut2> Future for TryJoin<Fut1, Fut2>
+where
+    Fut1: Future<Output = Result<T1, E>>,
+    Fut2: Future<Output = Result<T2, E>>,
+{
+    type Output = Result<(T1, T2), E>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+
+        if this.output1.is_none() {
+            if let Poll::Ready(out) = this.future1.poll(cx) {
+                match out {
+                    Ok(t) => *this.output1 = Some(Ok(t)),
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+        }
+
+        if this.output2.is_none() {
+            if let Poll::Ready(out) = this.future2.poll(cx) {
+                match out {
+                    Ok(t) => *this.output2 = Some(Ok(t)),
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+        }
+
+        if this.output1.is_some() && this.output2.is_some() {
+            let res1 = this.output1.take().unwrap();
+            let res2 = this.output2.take().unwrap();
+            let t1 = res1.map_err(|_| unreachable!()).unwrap();
+            let t2 = res2.map_err(|_| unreachable!()).unwrap();
+            Poll::Ready(Ok((t1, t2)))
+        } else {
+            Poll::Pending
         }
     }
 }

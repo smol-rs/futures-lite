@@ -2182,7 +2182,7 @@ pub trait AsyncWriteExt: AsyncWrite {
     }
 
     /// Flushes the stream to ensure that all buffered contents reach their destination.
-    //
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -2201,6 +2201,26 @@ pub trait AsyncWriteExt: AsyncWrite {
         Self: Unpin,
     {
         FlushFuture { writer: self }
+    }
+
+    /// Closes the writer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use async_net::TcpStream;
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut stream = TcpStream::connect("example.com:80").await?;
+    /// stream.close().await?;
+    /// # std::io::Result::Ok(()) });
+    /// ```
+    fn close(&mut self) -> CloseFuture<'_, Self>
+    where
+        Self: Unpin,
+    {
+        CloseFuture { writer: self }
     }
 }
 
@@ -2284,5 +2304,21 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for FlushFuture<'_, T> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut *self.writer).poll_flush(cx)
+    }
+}
+
+/// Future for the [`AsyncWriteExt::close()`] method.
+#[derive(Debug)]
+pub struct CloseFuture<'a, T: Unpin + ?Sized> {
+    writer: &'a mut T,
+}
+
+impl<T: Unpin + ?Sized> Unpin for CloseFuture<'_, T> {}
+
+impl<T: AsyncWrite + Unpin + ?Sized> Future for CloseFuture<'_, T> {
+    type Output = Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut *self.writer).poll_close(cx)
     }
 }
