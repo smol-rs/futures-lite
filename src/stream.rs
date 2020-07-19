@@ -540,9 +540,9 @@ pub trait StreamExt: Stream {
     /// Collects all items in the fallible stream into a collection.
     ///
     /// ```
-    /// # blocking::block_on(async {
     /// use futures_lite::*;
     ///
+    /// # blocking::block_on(async {
     /// let s = stream::iter(vec![Ok(1), Err(2), Ok(3)]);
     /// let res: Result<Vec<i32>, i32> = s.try_collect().await;
     /// assert_eq!(res, Err(2));
@@ -560,6 +560,74 @@ pub trait StreamExt: Stream {
         TryCollectFuture {
             stream: self,
             items: Default::default(),
+        }
+    }
+
+    /// Accumulates a computation over the stream.
+    ///
+    /// The computation begins with the accumulator value set to `init` then applies `f` to the
+    /// accumulator and each item in the stream. The final accumulator value is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let s = stream::iter(vec![1, 2, 3]);
+    /// let sum = s.fold(0, |acc, x| acc + x).await;
+    ///
+    /// assert_eq!(sum, 6);
+    /// # })
+    /// ```
+    fn fold<B, F>(self, init: B, f: F) -> FoldFuture<Self, F, B>
+    where
+        Self: Sized,
+        F: FnMut(B, Self::Item) -> B,
+    {
+        FoldFuture {
+            stream: self,
+            f,
+            acc: Some(init),
+        }
+    }
+
+    /// Accumulates a fallible computation over the stream.
+    ///
+    /// The computation begins with the accumulator value set to `init` then applies `f` to the
+    /// accumulator and each item in the stream. The final accumulator value is returned, or an
+    /// error if `f` failed the computation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut s = stream::iter(vec![Ok(1), Ok(2), Ok(3)]);
+    ///
+    /// let sum = s.try_fold(0, |acc, v| {
+    ///     if (acc + v) % 2 == 1 {
+    ///         Ok(acc + v)
+    ///     } else {
+    ///         Err("fail")
+    ///     }
+    /// })
+    /// .await;
+    ///
+    /// assert_eq!(sum, Err("fail"));
+    /// # })
+    /// ```
+    fn try_fold<T, E, F, B>(&mut self, init: B, f: F) -> TryFoldFuture<'_, Self, F, B>
+    where
+        Self: Unpin + Sized,
+        Self::Item: try_hack::Result<Ok = T, Err = E>,
+        F: FnMut(B, T) -> Result<B, E>,
+    {
+        TryFoldFuture {
+            stream: self,
+            f,
+            acc: Some(init),
         }
     }
 }
@@ -642,15 +710,97 @@ where
     }
 }
 
+pin_project! {
+    /// Future for the [`StreamExt::fold()`] method.
+    #[derive(Debug)]
+    pub struct FoldFuture<S, F, B> {
+        #[pin]
+        stream: S,
+        f: F,
+        acc: Option<B>,
+    }
+}
+
+impl<S, F, B> Future for FoldFuture<S, F, B>
+where
+    S: Stream + Sized,
+    F: FnMut(B, S::Item) -> B,
+{
+    type Output = B;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(v) => {
+                    let old = this.acc.take().unwrap();
+                    let new = (this.f)(old, v);
+                    *this.acc = Some(new);
+                }
+                None => return Poll::Ready(this.acc.take().unwrap()),
+            }
+        }
+    }
+}
+
+/// Future for the [`StreamExt::try_fold()`] method.
+#[derive(Debug)]
+pub struct TryFoldFuture<'a, S, F, B> {
+    stream: &'a mut S,
+    f: F,
+    acc: Option<B>,
+}
+
+impl<'a, S, F, B> Unpin for TryFoldFuture<'a, S, F, B> {}
+
+impl<'a, T, E, S, F, B> Future for TryFoldFuture<'a, S, F, B>
+where
+    S: Stream + Unpin,
+    S::Item: try_hack::Result<Ok = T, Err = E>,
+    F: FnMut(B, T) -> Result<B, E>,
+{
+    type Output = Result<B, E>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(Pin::new(&mut self.stream).poll_next(cx)) {
+                Some(res) => {
+                    use try_hack::Result as _;
+
+                    match res.into_result() {
+                        Err(e) => return Poll::Ready(Err(e)),
+                        Ok(t) => {
+                            let old = self.acc.take().unwrap();
+                            let new = (&mut self.f)(old, t);
+
+                            match new {
+                                Ok(t) => self.acc = Some(t),
+                                Err(e) => return Poll::Ready(Err(e)),
+                            }
+                        }
+                    }
+                }
+                None => return Poll::Ready(Ok(self.acc.take().unwrap())),
+            }
+        }
+    }
+}
+
 /// The `Try` trait is not stable yet, so we use this hack to constrain types to `Result<T, E>`.
 mod try_hack {
     pub trait Result {
         type Ok;
         type Err;
+
+        fn into_result(self) -> std::result::Result<Self::Ok, Self::Err>;
     }
 
     impl<T, E> Result for std::result::Result<T, E> {
         type Ok = T;
         type Err = E;
+
+        fn into_result(self) -> std::result::Result<T, E> {
+            self
+        }
     }
 }
