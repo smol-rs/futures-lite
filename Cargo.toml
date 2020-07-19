@@ -13,6 +13,7 @@ categories = ["asynchronous", "concurrency"]
 readme = "README.md"
 
 [dependencies]
+fastrand = "1.3.3"
 futures-core = "0.3.5"
 futures-io = { version = "0.3.5", default-features = false, features = ["std"] }
 memchr = "2.3.3"

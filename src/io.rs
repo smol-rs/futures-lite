@@ -33,7 +33,6 @@ pub use std::io::{Error, ErrorKind, Result, SeekFrom};
 use std::io::{IoSlice, IoSliceMut};
 use std::mem;
 use std::pin::Pin;
-use std::str;
 use std::task::{Context, Poll};
 
 use futures_core::stream::Stream;
@@ -1230,21 +1229,7 @@ impl<T: AsyncBufRead + Unpin + ?Sized> Future for ReadLineFuture<'_, T> {
             bytes,
             read,
         } = &mut *self;
-        let reader = Pin::new(reader);
-
-        let ret = ready!(read_until_internal(reader, cx, b'\n', bytes, read));
-        match str::from_utf8(&bytes) {
-            Ok(s) => {
-                buf.push_str(s);
-                Poll::Ready(ret)
-            }
-            Err(_) => Poll::Ready(ret.and_then(|_| {
-                Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "stream did not contain valid UTF-8",
-                ))
-            })),
-        }
+        read_line_internal(Pin::new(reader), cx, buf, bytes, read)
     }
 }
 
@@ -1296,9 +1281,11 @@ fn read_line_internal<R: AsyncBufRead + ?Sized>(
 ) -> Poll<Result<usize>> {
     let ret = ready!(read_until_internal(reader, cx, b'\n', bytes, read));
 
-    match str::from_utf8(&bytes) {
+    match String::from_utf8(mem::replace(bytes, Vec::new())) {
         Ok(s) => {
-            buf.push_str(s);
+            debug_assert!(buf.is_empty());
+            debug_assert_eq!(*read, 0);
+            *buf = s;
             Poll::Ready(ret)
         }
         Err(_) => Poll::Ready(ret.and_then(|_| {
@@ -1648,9 +1635,11 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToStringFuture<'_, T> {
         let reader = Pin::new(reader);
 
         let ret = ready!(read_to_end_internal(reader, cx, bytes, *start_len));
-        match str::from_utf8(&bytes) {
+
+        match String::from_utf8(mem::replace(bytes, Vec::new())) {
             Ok(s) => {
-                buf.push_str(s);
+                debug_assert!(buf.is_empty());
+                **buf = s;
                 Poll::Ready(ret)
             }
             Err(_) => Poll::Ready(ret.and_then(|_| {

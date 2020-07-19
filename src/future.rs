@@ -385,3 +385,68 @@ where
         }
     }
 }
+
+/// Returns the result of the future that completes first.
+///
+/// Each time [`Race`] is polled, the two inner futures are polled in random order. Therefore, no
+/// future takes precedence over the other if both can complete at the same time.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// # blocking::block_on(async {
+/// let a = future::pending();
+/// let b = future::ready(7);
+///
+/// assert_eq!(future::race(a, b).await, 7);
+/// # })
+/// ```
+pub fn race<T, A, B>(future1: A, future2: B) -> Race<A, B>
+where
+    A: Future<Output = T>,
+    B: Future<Output = T>,
+{
+    Race { future1, future2 }
+}
+
+pin_project! {
+    /// Future for the [`race()`] function.
+    #[derive(Debug)]
+    pub struct Race<A, B> {
+        #[pin]
+        future1: A,
+        #[pin]
+        future2: B,
+    }
+}
+
+impl<T, A, B> Future for Race<A, B>
+where
+    A: Future<Output = T>,
+    B: Future<Output = T>,
+{
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+
+        if fastrand::bool() {
+            if let Poll::Ready(t) = this.future1.poll(cx) {
+                return Poll::Ready(t);
+            }
+            if let Poll::Ready(t) = this.future2.poll(cx) {
+                return Poll::Ready(t);
+            }
+        } else {
+            if let Poll::Ready(t) = this.future1.poll(cx) {
+                return Poll::Ready(t);
+            }
+            if let Poll::Ready(t) = this.future2.poll(cx) {
+                return Poll::Ready(t);
+            }
+        }
+        Poll::Pending
+    }
+}
