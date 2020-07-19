@@ -1,3 +1,8 @@
+# Version 0.1.4
+
+- Add `future::race()`.
+- Fix a bug in `BufReader`.
+
 # Version 0.1.3
 
 - Add `future::join()`, `future::try_join()`, and `AsyncWriteExt::close()`.
