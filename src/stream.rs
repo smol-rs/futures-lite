@@ -1,6 +1,27 @@
+//! Combinators for the [`Stream`] trait.
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use futures_lite::*;
+//!
+//! # blocking::block_on(async {
+//! let s = stream::iter(vec![1, 2, 3]);
+//!
+//! assert_eq!(s.next().await, Some(1));
+//! assert_eq!(s.next().await, Some(2));
+//! assert_eq!(s.next().await, Some(3));
+//! assert_eq!(s.next().await, None);
+//! # });
+//! ```
+
+// TODO: future() constructor that converts a future to a stream
+// TODO: merge() constructor (randomized for fairness)
+
 use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
+use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -10,25 +31,16 @@ use pin_project_lite::pin_project;
 
 use crate::ready;
 
-/// Creates a stream that doesn't yield any items.
-///
-/// This `struct` is created by the [`empty`] function. See its
-/// documentation for more.
-///
-/// [`empty`]: fn.empty.html
+/// Creates an empty stream.
 ///
 /// # Examples
 ///
 /// ```
-/// # async_std::task::block_on(async {
-/// #
-/// use async_std::prelude::*;
-/// use async_std::stream;
+/// use futures_lite::*;
 ///
+/// # blocking::block_on(async {
 /// let mut s = stream::empty::<i32>();
-///
 /// assert_eq!(s.next().await, None);
-/// #
 /// # })
 /// ```
 pub fn empty<T>() -> Empty<T> {
@@ -37,15 +49,13 @@ pub fn empty<T>() -> Empty<T> {
     }
 }
 
-/// A stream that doesn't yield any items.
-///
-/// This stream is constructed by the [`empty`] function.
-///
-/// [`empty`]: fn.empty.html
+/// Stream for the [`empty()`] function.
 #[derive(Debug)]
 pub struct Empty<T> {
     _marker: PhantomData<T>,
 }
+
+impl<T> Unpin for Empty<T> {}
 
 impl<T> Stream for Empty<T> {
     type Item = T;
@@ -55,50 +65,44 @@ impl<T> Stream for Empty<T> {
     }
 }
 
-pin_project! {
-    /// A stream that was created from iterator.
-    ///
-    /// This stream is created by the [`iter`] function.
-    /// See it documentation for more.
-    ///
-    /// [`iter`]: fn.iter.html
-    #[derive(Clone, Debug)]
-    pub struct FromIter<I> {
-        iter: I,
-    }
-}
-
-/// Converts an iterator into a stream.
+/// Creates a stream from an iterator.
 ///
 /// # Examples
 ///
 /// ```
-/// # async_std::task::block_on(async {
-/// #
-/// use async_std::prelude::*;
-/// use async_std::stream;
+/// use futures_lite::*;
 ///
-/// let mut s = stream::iter(vec![0, 1, 2, 3]);
+/// # blocking::block_on(async {
+/// let mut s = stream::iter(vec![1, 2]);
 ///
-/// assert_eq!(s.next().await, Some(0));
 /// assert_eq!(s.next().await, Some(1));
 /// assert_eq!(s.next().await, Some(2));
-/// assert_eq!(s.next().await, Some(3));
 /// assert_eq!(s.next().await, None);
-/// #
 /// # })
 /// ```
-pub fn iter<I: IntoIterator>(iter: I) -> FromIter<I::IntoIter> {
-    FromIter {
+pub fn iter<I: IntoIterator>(iter: I) -> Iter<I::IntoIter> {
+    Iter {
         iter: iter.into_iter(),
     }
 }
 
-impl<I: Iterator> Stream for FromIter<I> {
+/// Stream for the [`iter()`] function.
+#[derive(Debug)]
+pub struct Iter<I> {
+    iter: I,
+}
+
+impl<I> Unpin for Iter<I> {}
+
+impl<I: Iterator> Stream for Iter<I> {
     type Item = I::Item;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(self.iter.next())
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
     }
 }
 
@@ -107,16 +111,13 @@ impl<I: Iterator> Stream for FromIter<I> {
 /// # Examples
 ///
 /// ```
-/// # async_std::task::block_on(async {
-/// #
-/// use async_std::prelude::*;
-/// use async_std::stream;
+/// use futures_lite::*;
 ///
+/// # blocking::block_on(async {
 /// let mut s = stream::once(7);
 ///
 /// assert_eq!(s.next().await, Some(7));
 /// assert_eq!(s.next().await, None);
-/// #
 /// # })
 /// ```
 pub fn once<T>(t: T) -> Once<T> {
@@ -124,13 +125,8 @@ pub fn once<T>(t: T) -> Once<T> {
 }
 
 pin_project! {
-    /// A stream that yields a single item.
-    ///
-    /// This stream is created by the [`once`] function. See its
-    /// documentation for more.
-    ///
-    /// [`once`]: fn.once.html
-    #[derive(Clone, Debug)]
+    /// Stream for the [`once()`] function.
+    #[derive(Debug)]
     pub struct Once<T> {
         value: Option<T>,
     }
@@ -142,41 +138,27 @@ impl<T> Stream for Once<T> {
     fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<T>> {
         Poll::Ready(self.project().value.take())
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.value.is_some() {
+            (1, Some(1))
+        } else {
+            (0, Some(0))
+        }
+    }
 }
 
-/// A stream that never returns any items.
+/// Creates a stream that is always pending.
 ///
-/// This stream is created by the [`pending`] function. See its
-/// documentation for more.
-///
-/// [`pending`]: fn.pending.html
-#[derive(Debug)]
-pub struct Pending<T> {
-    _marker: PhantomData<T>,
-}
-
-/// Creates a stream that never returns any items.
-///
-/// The returned stream will always return `Pending` when polled.
 /// # Examples
 ///
-/// ```
-/// # async_std::task::block_on(async {
-/// #
-/// use std::time::Duration;
+/// ```no_run
+/// use futures_lite::*;
 ///
-/// use async_std::prelude::*;
-/// use async_std::stream;
-///
-/// let dur = Duration::from_millis(100);
-/// let mut s = stream::pending::<()>().timeout(dur);
-///
-/// let item = s.next().await;
-///
-/// assert!(item.is_some());
-/// assert!(item.unwrap().is_err());
-///
-/// #
+/// # blocking::block_on(async {
+/// let mut s = stream::pending::<i32>();
+/// s.next().await;
+/// unreachable!();
 /// # })
 /// ```
 pub fn pending<T>() -> Pending<T> {
@@ -184,6 +166,14 @@ pub fn pending<T>() -> Pending<T> {
         _marker: PhantomData,
     }
 }
+
+/// Stream for the [`pending()`] function.
+#[derive(Debug)]
+pub struct Pending<T> {
+    _marker: PhantomData<T>,
+}
+
+impl<T> Unpin for Pending<T> {}
 
 impl<T> Stream for Pending<T> {
     type Item = T;
@@ -193,23 +183,21 @@ impl<T> Stream for Pending<T> {
     }
 }
 
-/// Creates a new stream wrapping a function returning `Poll<Option<T>>`.
-///
-/// Polling the returned stream calls the wrapped function.
+/// Creates a stream from a function returning [`Poll`].
 ///
 /// # Examples
 ///
 /// ```
-/// use futures::stream::poll_fn;
-/// use futures::task::Poll;
+/// use futures_lite::*;
+/// use std::task::{Context, Poll};
 ///
-/// let mut counter = 1usize;
+/// # blocking::block_on(async {
+/// fn f(_: &mut Context<'_>) -> Poll<Option<i32>> {
+///     Poll::Ready(Some(7))
+/// }
 ///
-/// let read_stream = poll_fn(move |_| -> Poll<Option<String>> {
-///     if counter == 0 { return Poll::Ready(None); }
-///     counter -= 1;
-///     Poll::Ready(Some("Hello, World!".to_owned()))
-/// });
+/// assert_eq!(stream::poll_fn(f).next().await, Some(7));
+/// # })
 /// ```
 pub fn poll_fn<T, F>(f: F) -> PollFn<F>
 where
@@ -218,7 +206,7 @@ where
     PollFn { f }
 }
 
-/// Stream for the [`poll_fn`] function.
+/// Stream for the [`poll_fn()`] function.
 pub struct PollFn<F> {
     f: F,
 }
@@ -242,40 +230,31 @@ where
     }
 }
 
-/// Creates a stream that yields the same item repeatedly.
+/// Creates an infinite stream that yields the same item repeatedly.
 ///
 /// # Examples
 ///
 /// ```
-/// # async_std::task::block_on(async {
-/// #
-/// use async_std::prelude::*;
-/// use async_std::stream;
+/// use futures_lite::*;
 ///
+/// # blocking::block_on(async {
 /// let mut s = stream::repeat(7);
 ///
 /// assert_eq!(s.next().await, Some(7));
 /// assert_eq!(s.next().await, Some(7));
-/// #
 /// # })
 /// ```
-pub fn repeat<T>(item: T) -> Repeat<T>
-where
-    T: Clone,
-{
+pub fn repeat<T: Clone>(item: T) -> Repeat<T> {
     Repeat { item }
 }
 
-/// A stream that yields the same item repeatedly.
-///
-/// This stream is created by the [`repeat`] function. See its
-/// documentation for more.
-///
-/// [`repeat`]: fn.repeat.html
-#[derive(Clone, Debug)]
+/// Stream for the [`repeat()`] function.
+#[derive(Debug)]
 pub struct Repeat<T> {
     item: T,
 }
+
+impl<T> Unpin for Repeat<T> {}
 
 impl<T: Clone> Stream for Repeat<T> {
     type Item = T;
@@ -285,65 +264,18 @@ impl<T: Clone> Stream for Repeat<T> {
     }
 }
 
-/// A stream that repeats elements of type `T` endlessly by applying a provided closure.
-///
-/// This stream is created by the [`repeat_with`] function. See its
-/// documentation for more.
-///
-/// [`repeat_with`]: fn.repeat_with.html
-#[derive(Clone, Debug)]
-pub struct RepeatWith<F> {
-    f: F,
-}
-
-impl<F> Unpin for RepeatWith<F> {}
-
-/// Creates a new stream that repeats elements of type `A` endlessly by applying the provided closure.
+/// Creates an infinite stream from a closure that generates items.
 ///
 /// # Examples
 ///
-/// Basic usage:
-///
 /// ```
-/// # async_std::task::block_on(async {
-/// #
-/// use async_std::prelude::*;
-/// use async_std::stream;
+/// use futures_lite::*;
 ///
-/// let s = stream::repeat_with(|| 1);
+/// # blocking::block_on(async {
+/// let mut s = stream::repeat(7);
 ///
-/// pin_utils::pin_mut!(s);
-///
-/// assert_eq!(s.next().await, Some(1));
-/// assert_eq!(s.next().await, Some(1));
-/// assert_eq!(s.next().await, Some(1));
-/// assert_eq!(s.next().await, Some(1));
-/// # })
-/// ```
-///
-/// Going finite:
-///
-/// ```
-/// # async_std::task::block_on(async {
-/// #
-/// use async_std::prelude::*;
-/// use async_std::stream;
-///
-/// let mut n = 1;
-/// let s = stream::repeat_with(|| {
-///     let item = n;
-///     n *= 2;
-///     item
-/// })
-/// .take(4);
-///
-/// pin_utils::pin_mut!(s);
-///
-/// assert_eq!(s.next().await, Some(1));
-/// assert_eq!(s.next().await, Some(2));
-/// assert_eq!(s.next().await, Some(4));
-/// assert_eq!(s.next().await, Some(8));
-/// assert_eq!(s.next().await, None);
+/// assert_eq!(s.next().await, Some(7));
+/// assert_eq!(s.next().await, Some(7));
 /// # })
 /// ```
 pub fn repeat_with<T, F>(repeater: F) -> RepeatWith<F>
@@ -352,6 +284,14 @@ where
 {
     RepeatWith { f: repeater }
 }
+
+/// Stream for the [`repeat_with()`] function.
+#[derive(Debug)]
+pub struct RepeatWith<F> {
+    f: F,
+}
+
+impl<F> Unpin for RepeatWith<F> {}
 
 impl<T, F> Stream for RepeatWith<F>
 where
@@ -365,39 +305,41 @@ where
     }
 }
 
-/// Creates a stream from a seed and a closure returning a future.
+/// Creates a stream from a seed value and an async closure operating on it.
 ///
 /// # Examples
 ///
 /// ```
 /// use futures_lite::*;
 ///
-/// let s = stream::unfold(0, |n| async move {
-///     if n < 5 {
-///         n += 1;
-///         Some(*n)
+/// # blocking::block_on(async {
+/// let s = stream::unfold(0, |mut n| async move {
+///     if n < 2 {
+///         let m = n + 1;
+///         Some((n, m))
 ///     } else {
 ///         None
 ///     }
 /// });
 ///
-/// let result = s.collect::<Vec<i32>>().await;
-/// assert_eq!(result, vec![1, 2, 3, 4, 5]);
+/// let v: Vec<i32> = s.collect().await;
+/// assert_eq!(v, [0, 1]);
+/// # })
 /// ```
-pub fn unfold<T, F, Fut, Item>(init: T, f: F) -> Unfold<T, F, Fut>
+pub fn unfold<T, F, Fut, Item>(seed: T, f: F) -> Unfold<T, F, Fut>
 where
-    F: FnMut(&mut T) -> Fut,
-    Fut: Future<Output = Option<Item>>,
+    F: FnMut(T) -> Fut,
+    Fut: Future<Output = Option<(Item, T)>>,
 {
     Unfold {
         f,
-        state: Some(init),
+        state: Some(seed),
         fut: None,
     }
 }
 
 pin_project! {
-    /// Stream for the [`unfold`] function.
+    /// Stream for the [`unfold()`] function.
     pub struct Unfold<T, F, Fut> {
         f: F,
         state: Option<T>,
@@ -421,27 +363,28 @@ where
 
 impl<T, F, Fut, Item> Stream for Unfold<T, F, Fut>
 where
-    F: FnMut(&mut T) -> Fut,
-    Fut: Future<Output = Option<Item>>,
+    F: FnMut(T) -> Fut,
+    Fut: Future<Output = Option<(Item, T)>>,
 {
     type Item = Item;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        if let Some(state) = this.state.as_mut() {
+        if let Some(state) = this.state.take() {
             this.fut.set(Some((this.f)(state)));
         }
 
-        let fut = this
+        let step = ready!(this
             .fut
             .as_mut()
             .as_pin_mut()
-            .expect("`Unfold` must not be polled after it returned `Poll::Ready(None)`");
-        let step = ready!(fut.poll(cx));
+            .expect("`Unfold` must not be polled after it returned `Poll::Ready(None)`")
+            .poll(cx));
         this.fut.set(None);
 
-        if let Some(item) = step {
+        if let Some((item, next_state)) = step {
+            *this.state = Some(next_state);
             Poll::Ready(Some(item))
         } else {
             Poll::Ready(None)
@@ -449,11 +392,31 @@ where
     }
 }
 
-/// Creates a [`TryStream`] from a seed and a closure returning a `TryFuture`.
+/// Creates a stream from a seed value and a fallible async closure operating on it.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// # blocking::block_on(async {
+/// let s = stream::try_unfold(0, |mut n| async move {
+///     if n < 2 {
+///         let m = n + 1;
+///         Ok(Some((n, m)))
+///     } else {
+///         std::io::Result::Ok(None)
+///     }
+/// });
+///
+/// let v: Vec<i32> = s.try_collect().await?;
+/// assert_eq!(v, [0, 1]);
+/// # std::io::Result::Ok(()) });
+/// ```
 pub fn try_unfold<T, E, F, Fut, Item>(init: T, f: F) -> TryUnfold<T, F, Fut>
 where
-    F: FnMut(&mut T) -> Fut,
-    Fut: Future<Output = Result<Option<Item>, E>>,
+    F: FnMut(T) -> Fut,
+    Fut: Future<Output = Result<Option<(Item, T)>, E>>,
 {
     TryUnfold {
         f,
@@ -463,7 +426,7 @@ where
 }
 
 pin_project! {
-    /// Stream for the [`try_unfold`] function.
+    /// Stream for the [`try_unfold()`] function.
     pub struct TryUnfold<T, F, Fut> {
         f: F,
         state: Option<T>,
@@ -487,15 +450,15 @@ where
 
 impl<T, E, F, Fut, Item> Stream for TryUnfold<T, F, Fut>
 where
-    F: FnMut(&mut T) -> Fut,
-    Fut: Future<Output = Result<Option<Item>, E>>,
+    F: FnMut(T) -> Fut,
+    Fut: Future<Output = Result<Option<(Item, T)>, E>>,
 {
     type Item = Result<Item, E>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Item, E>>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        if let Some(state) = this.state.as_mut() {
+        if let Some(state) = this.state.take() {
             this.fut.set(Some((this.f)(state)));
         }
 
@@ -509,7 +472,10 @@ where
                 this.fut.set(None);
 
                 match step {
-                    Ok(Some(item)) => Poll::Ready(Some(Ok(item))),
+                    Ok(Some((item, next_state))) => {
+                        *this.state = Some(next_state);
+                        Poll::Ready(Some(Ok(item)))
+                    }
                     Ok(None) => Poll::Ready(None),
                     Err(e) => Poll::Ready(Some(Err(e))),
                 }
@@ -518,19 +484,91 @@ where
     }
 }
 
+/// Extension trait for [`Stream`] with a variety of combinators.
 pub trait StreamExt: Stream {
+    /// Retrieves the next item in the stream.
+    ///
+    /// Returns [`None`] when iteration is finished. Stream implementations may choose to or not to
+    /// resume iteration after that.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut s = stream::iter(1..=3);
+    ///
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, Some(3));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
     fn next(&mut self) -> NextFuture<'_, Self>
     where
         Self: Unpin,
     {
-        NextFuture(self)
+        NextFuture { stream: self }
+    }
+
+    /// Collects all items in the stream into a collection.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut s = stream::iter(1..=3);
+    ///
+    /// let items: Vec<_> = s.collect().await;
+    /// assert_eq!(items, [1, 2, 3]);
+    /// # });
+    /// ```
+    fn collect<C: Default + Extend<Self::Item>>(self) -> CollectFuture<Self, C>
+    where
+        Self: Sized,
+    {
+        CollectFuture {
+            stream: self,
+            collection: Default::default(),
+        }
+    }
+
+    /// Collects all items in the fallible stream into a collection.
+    ///
+    /// ```
+    /// # blocking::block_on(async {
+    /// use futures_lite::*;
+    ///
+    /// let s = stream::iter(vec![Ok(1), Err(2), Ok(3)]);
+    /// let res: Result<Vec<i32>, i32> = s.try_collect().await;
+    /// assert_eq!(res, Err(2));
+    ///
+    /// let s = stream::iter(vec![Ok(1), Ok(2), Ok(3)]);
+    /// let res: Result<Vec<i32>, i32> = s.try_collect().await;
+    /// assert_eq!(res, Ok(vec![1, 2, 3]));
+    /// # })
+    /// ```
+    fn try_collect<T, C: Default + Extend<T>>(self) -> TryCollectFuture<Self, C>
+    where
+        Self: Sized,
+        Self::Item: try_hack::Result<Ok = T>,
+    {
+        TryCollectFuture {
+            stream: self,
+            items: Default::default(),
+        }
     }
 }
 
 impl<T: ?Sized> StreamExt for T where T: Stream {}
 
-#[doc(hidden)]
-pub struct NextFuture<'a, T: Unpin + ?Sized>(&'a mut T);
+/// Future for the [`StreamExt::next()`] method.
+pub struct NextFuture<'a, T: Unpin + ?Sized> {
+    stream: &'a mut T,
+}
 
 impl<St: ?Sized + Unpin> Unpin for NextFuture<'_, St> {}
 
@@ -538,6 +576,79 @@ impl<T: Stream + Unpin + ?Sized> Future for NextFuture<'_, T> {
     type Output = Option<T::Item>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut *self.0).poll_next(cx)
+        Pin::new(&mut *self.stream).poll_next(cx)
+    }
+}
+
+pin_project! {
+    /// Future for the [`StreamExt::collect()`] method.
+    #[derive(Debug)]
+    pub struct CollectFuture<St, C> {
+        #[pin]
+        stream: St,
+        collection: C,
+    }
+}
+
+impl<St, C> Future for CollectFuture<St, C>
+where
+    St: Stream,
+    C: Default + Extend<St::Item>,
+{
+    type Output = C;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<C> {
+        let mut this = self.as_mut().project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(e) => this.collection.extend(Some(e)),
+                None => {
+                    return Poll::Ready({
+                        mem::replace(self.project().collection, Default::default())
+                    })
+                }
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Future for the [`StreamExt::try_collect()`] method.
+    #[derive(Debug)]
+    pub struct TryCollectFuture<St, C> {
+        #[pin]
+        stream: St,
+        items: C,
+    }
+}
+
+impl<T, E, St, C> Future for TryCollectFuture<St, C>
+where
+    St: Stream<Item = Result<T, E>>,
+    C: Default + Extend<T>,
+{
+    type Output = Result<C, E>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        Poll::Ready(Ok(loop {
+            match ready!(this.stream.as_mut().poll_next(cx)?) {
+                Some(x) => this.items.extend(Some(x)),
+                None => break mem::replace(this.items, Default::default()),
+            }
+        }))
+    }
+}
+
+/// The `Try` trait is not stable yet, so we use this hack to constrain types to `Result<T, E>`.
+mod try_hack {
+    pub trait Result {
+        type Ok;
+        type Err;
+    }
+
+    impl<T, E> Result for std::result::Result<T, E> {
+        type Ok = T;
+        type Err = E;
     }
 }

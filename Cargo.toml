@@ -18,3 +18,4 @@ pin-project-lite = "0.1.7"
 
 [dev-dependencies]
 blocking = "0.4.6"
+async-net = "0.1.0"

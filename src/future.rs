@@ -1,3 +1,23 @@
+//! Combinators for the [`Future`] trait.
+//!
+//! # Examples
+//!
+//! ```
+//! use futures_lite::*;
+//!
+//! # blocking::block_on(async {
+//! for step in 0..3 {
+//!     println!("step {}", step);
+//!
+//!     // Give other tasks a chance to run.
+//!     future::yield_now().await;
+//! }
+//! # });
+//! ```
+
+// TODO: race(), race!, try_race(), try_race! (randomized for fairness)
+// TODO: join(), join!, try_join(), try_join!
+
 use std::fmt;
 #[doc(no_inline)]
 pub use std::future::Future;
@@ -7,7 +27,7 @@ use std::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
 
-/// A future that never completes.
+/// Creates a future that is always pending.
 ///
 /// # Examples
 ///
@@ -106,6 +126,7 @@ where
 /// fn f(_: &mut Context<'_>) -> Poll<i32> {
 ///     Poll::Ready(7)
 /// }
+///
 /// assert_eq!(future::poll_fn(f).await, 7);
 /// # })
 /// ```
@@ -141,7 +162,7 @@ where
     }
 }
 
-/// Resolves to the provided value.
+/// Creates a future that resolves to the provided value.
 ///
 /// # Examples
 ///

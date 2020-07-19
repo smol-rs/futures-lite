@@ -1,9 +1,36 @@
+//! Tools and combinators for I/O.
+//!
+//! # Examples
+//!
+//! Read a file line by line:
+//!
+//! ```no_run
+//! use blocking::{block_on, Unblock};
+//! use futures_lite::*;
+//! use std::fs::File;
+//!
+//! fn main() -> Result<()> {
+//!     block_on(async {
+//!         let file = Unblock::new(File::open("a.txt")?);
+//!         let reader = io::BufReader::new(file);
+//!         let mut lines = reader.lines();
+//!
+//!         while let Some(line) = lines.next().await {
+//!             println!("{}", line?);
+//!         }
+//!         Ok(())
+//!     })
+//! }
+//! ```
+
+// TODO: Async version of std::io::LineWriter
+
 use std::cmp;
 use std::fmt;
 use std::future::Future;
 #[doc(no_inline)]
-pub use std::io::{Error, ErrorKind, Result};
-use std::io::{IoSlice, IoSliceMut, Read, SeekFrom};
+pub use std::io::{Error, ErrorKind, Result, SeekFrom};
+use std::io::{IoSlice, IoSliceMut, Read};
 use std::mem;
 use std::pin::Pin;
 use std::str;
@@ -20,40 +47,23 @@ const DEFAULT_BUF_SIZE: usize = 8 * 1024;
 
 /// Copies the entire contents of a reader into a writer.
 ///
-/// This function will continuously read data from `reader` and then
-/// write it into `writer` in a streaming fashion until `reader`
-/// returns EOF.
+/// This function will read data from `reader` and write it into `writer` in a streaming fashion
+/// until `reader` returns EOF.
 ///
-/// On success, the total number of bytes that were copied from
-/// `reader` to `writer` is returned.
-///
-/// If you’re wanting to copy the contents of one file to another and you’re
-/// working with filesystem paths, see the [`fs::copy`] function.
-///
-/// This function is an async version of [`std::io::copy`].
-///
-/// [`std::io::copy`]: https://doc.rust-lang.org/std/io/fn.copy.html
-/// [`fs::copy`]: ../fs/fn.copy.html
-///
-/// # Errors
-///
-/// This function will return an error immediately if any call to `read` or
-/// `write` returns an error. All instances of `ErrorKind::Interrupted` are
-/// handled by this function and the underlying operation is retried.
+/// On success, returns the total number of bytes copied.
 ///
 /// # Examples
 ///
 /// ```
-/// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-/// #
-/// use async_std::io;
+/// use blocking::Unblock;
+/// use futures_lite::*;
 ///
-/// let mut reader: &[u8] = b"hello";
-/// let mut writer = io::stdout();
+/// # blocking::block_on(async {
+/// let reader: &[u8] = b"hello";
+/// let writer = Unblock::new(std::io::stdout());
 ///
-/// io::copy(&mut reader, &mut writer).await?;
-/// #
-/// # Ok(()) }) }
+/// io::copy(reader, writer).await?;
+/// # std::io::Result::Ok(()) });
 /// ```
 pub async fn copy<R, W>(reader: R, writer: W) -> Result<u64>
 where
@@ -105,40 +115,34 @@ where
 }
 
 pin_project! {
-    /// Adds buffering to any reader.
+    /// Adds buffering to a reader.
     ///
-    /// It can be excessively inefficient to work directly with a [`Read`] instance. A `BufReader`
-    /// performs large, infrequent reads on the underlying [`Read`] and maintains an in-memory buffer
-    /// of the incoming byte stream.
+    /// It can be excessively inefficient to work directly with an [`AsyncRead`] instance. A
+    /// [`BufReader`] performs large, infrequent reads on the underlying [`AsyncRead`] and
+    /// maintains an in-memory buffer of the incoming byte stream.
     ///
-    /// `BufReader` can improve the speed of programs that make *small* and *repeated* read calls to
-    /// the same file or network socket. It does not help when reading very large amounts at once, or
-    /// reading just one or a few times. It also provides no advantage when reading from a source that
-    /// is already in memory, like a `Vec<u8>`.
+    /// [`BufReader`] can improve the speed of programs that make *small* and *repeated* reads to
+    /// the same file or networking socket. It does not help when reading very large amounts at
+    /// once, or reading just once or a few times. It also provides no advantage when reading from
+    /// a source that is already in memory, like a `Vec<u8>`.
     ///
-    /// When the `BufReader` is dropped, the contents of its buffer will be discarded. Creating
-    /// multiple instances of a `BufReader` on the same stream can cause data loss.
-    ///
-    /// This type is an async version of [`std::io::BufReader`].
-    ///
-    /// [`Read`]: trait.Read.html
-    /// [`std::io::BufReader`]: https://doc.rust-lang.org/std/io/struct.BufReader.html
+    /// When a [`BufReader`] is dropped, the contents of its buffer are discarded. Creating
+    /// multiple instances of [`BufReader`] on the same reader can cause data loss.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::fs::File;
-    /// use async_std::io::BufReader;
-    /// use async_std::prelude::*;
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
     ///
-    /// let mut file = BufReader::new(File::open("a.txt").await?);
+    /// # blocking::block_on(async {
+    /// let mut file = Unblock::new(File::open("a.txt")?);
+    /// let mut reader = io::BufReader::new(file);
     ///
     /// let mut line = String::new();
-    /// file.read_line(&mut line).await?;
-    /// #
-    /// # Ok(()) }) }
+    /// reader.read_line(&mut line).await?;
+    /// # std::io::Result::Ok(()) });
     /// ```
     pub struct BufReader<R> {
         #[pin]
@@ -150,39 +154,31 @@ pin_project! {
 }
 
 impl<R: AsyncRead> BufReader<R> {
-    /// Creates a buffered reader with default buffer capacity.
+    /// Creates a buffered reader with the default buffer capacity.
     ///
-    /// The default capacity is currently 8 KB, but may change in the future.
+    /// The default capacity is currently 8 KB, but that may change in the future.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::fs::File;
-    /// use async_std::io::BufReader;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let f = BufReader::new(File::open("a.txt").await?);
-    /// #
-    /// # Ok(()) }) }
+    /// let bytes: &[u8] = b"hello";
+    /// let reader = io::BufReader::new(bytes);
     /// ```
     pub fn new(inner: R) -> BufReader<R> {
         BufReader::with_capacity(DEFAULT_BUF_SIZE, inner)
     }
 
-    /// Creates a new buffered reader with the specified capacity.
+    /// Creates a buffered reader with the specified capacity.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::fs::File;
-    /// use async_std::io::BufReader;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let f = BufReader::with_capacity(1024, File::open("a.txt").await?);
-    /// #
-    /// # Ok(()) }) }
+    /// let bytes: &[u8] = b"hello";
+    /// let reader = io::BufReader::with_capacity(1024, bytes);
     /// ```
     pub fn with_capacity(capacity: usize, inner: R) -> BufReader<R> {
         BufReader {
@@ -197,20 +193,17 @@ impl<R: AsyncRead> BufReader<R> {
 impl<R> BufReader<R> {
     /// Gets a reference to the underlying reader.
     ///
-    /// It is inadvisable to directly read from the underlying reader.
+    /// It is not advisable to directly read from the underlying reader.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::fs::File;
-    /// use async_std::io::BufReader;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let f = BufReader::new(File::open("a.txt").await?);
-    /// let inner = f.get_ref();
-    /// #
-    /// # Ok(()) }) }
+    /// let bytes: &[u8] = b"hello";
+    /// let reader = io::BufReader::new(bytes);
+    ///
+    /// let r = reader.get_ref();
     /// ```
     pub fn get_ref(&self) -> &R {
         &self.inner
@@ -218,20 +211,17 @@ impl<R> BufReader<R> {
 
     /// Gets a mutable reference to the underlying reader.
     ///
-    /// It is inadvisable to directly read from the underlying reader.
+    /// It is not advisable to directly read from the underlying reader.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::fs::File;
-    /// use async_std::io::BufReader;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let mut file = BufReader::new(File::open("a.txt").await?);
-    /// let inner = file.get_mut();
-    /// #
-    /// # Ok(()) }) }
+    /// let bytes: &[u8] = b"hello";
+    /// let mut reader = io::BufReader::new(bytes);
+    ///
+    /// let r = reader.get_mut();
     /// ```
     pub fn get_mut(&mut self) -> &mut R {
         &mut self.inner
@@ -239,7 +229,7 @@ impl<R> BufReader<R> {
 
     /// Gets a pinned mutable reference to the underlying reader.
     ///
-    /// It is inadvisable to directly read from the underlying reader.
+    /// It is not advisable to directly read from the underlying reader.
     fn get_pin_mut(self: Pin<&mut Self>) -> Pin<&mut R> {
         self.project().inner
     }
@@ -250,16 +240,14 @@ impl<R> BufReader<R> {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::fs::File;
-    /// use async_std::io::BufReader;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let f = BufReader::new(File::open("a.txt").await?);
-    /// let buffer = f.buffer();
-    /// #
-    /// # Ok(()) }) }
+    /// let bytes: &[u8] = b"hello";
+    /// let reader = io::BufReader::new(bytes);
+    ///
+    /// // The internal buffer is empty until the first read request.
+    /// assert_eq!(reader.buffer(), &[]);
     /// ```
     pub fn buffer(&self) -> &[u8] {
         &self.buf[self.pos..self.cap]
@@ -267,20 +255,17 @@ impl<R> BufReader<R> {
 
     /// Unwraps the buffered reader, returning the underlying reader.
     ///
-    /// Note that any leftover data in the internal buffer is lost.
+    /// Note that any leftover data in the internal buffer will be lost.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// #
-    /// use async_std::fs::File;
-    /// use async_std::io::BufReader;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let f = BufReader::new(File::open("a.txt").await?);
-    /// let inner = f.into_inner();
-    /// #
-    /// # Ok(()) }) }
+    /// let bytes: &[u8] = b"hello";
+    /// let reader = io::BufReader::new(bytes);
+    ///
+    /// assert_eq!(reader.into_inner(), bytes);
     /// ```
     pub fn into_inner(self) -> R {
         self.inner
@@ -370,21 +355,19 @@ impl<R: AsyncRead + fmt::Debug> fmt::Debug for BufReader<R> {
 impl<R: AsyncSeek> AsyncSeek for BufReader<R> {
     /// Seeks to an offset, in bytes, in the underlying reader.
     ///
-    /// The position used for seeking with `SeekFrom::Current(_)` is the position the underlying
-    /// reader would be at if the `BufReader` had no internal buffer.
+    /// The position used for seeking with [`SeekFrom::Current`] is the position the underlying
+    /// reader would be at if the [`BufReader`] had no internal buffer.
     ///
     /// Seeking always discards the internal buffer, even if the seek position would otherwise fall
-    /// within it. This guarantees that calling `.into_inner()` immediately after a seek yields the
-    /// underlying reader at the same position.
+    /// within it. This guarantees that calling [`into_inner()`][`BufReader::into_inner()`]
+    /// immediately after a seek yields the underlying reader at the same position.
     ///
-    /// See [`Seek`] for more details.
+    /// See [`AsyncSeek`] for more details.
     ///
     /// Note: In the edge case where you're seeking with `SeekFrom::Current(n)` where `n` minus the
     /// internal buffer length overflows an `i64`, two seeks will be performed instead of one. If
     /// the second seek returns `Err`, the underlying reader will be left at the same position it
-    /// would have if you called `seek` with `SeekFrom::Current(0)`.
-    ///
-    /// [`Seek`]: trait.Seek.html
+    /// would have if you called [`seek()`][`AsyncSeekExt::seek()`] with `SeekFrom::Current(0)`.
     fn poll_seek(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -425,78 +408,37 @@ impl<R: AsyncSeek> AsyncSeek for BufReader<R> {
 }
 
 pin_project! {
-    /// Wraps a writer and buffers its output.
+    /// Adds buffering to a writer.
     ///
-    /// It can be excessively inefficient to work directly with something that
-    /// implements [`Write`]. For example, every call to
-    /// [`write`][`TcpStream::write`] on [`TcpStream`] results in a system call. A
-    /// `BufWriter` keeps an in-memory buffer of data and writes it to an underlying
-    /// writer in large, infrequent batches.
+    /// It can be excessively inefficient to work directly with something that implements
+    /// [`AsyncWrite`]. For example, every call to [`write()`][`AsyncWriteExt::write()`] on a TCP
+    /// stream results in a system call. A [`BufWriter`] keeps an in-memory buffer of data and
+    /// writes it to the underlying writer in large, infrequent batches.
     ///
-    /// `BufWriter` can improve the speed of programs that make *small* and
-    /// *repeated* write calls to the same file or network socket. It does not
-    /// help when writing very large amounts at once, or writing just one or a few
-    /// times. It also provides no advantage when writing to a destination that is
-    /// in memory, like a `Vec<u8>`.
+    /// [`BufWriter`] can improve the speed of programs that make *small* and *repeated* writes to
+    /// the same file or networking socket. It does not help when writing very large amounts at
+    /// once, or writing just once or a few times. It also provides no advantage when writing to a
+    /// destination that is in memory, like a `Vec<u8>`.
     ///
-    /// Unlike the `BufWriter` type in `std`, this type does not write out the
-    /// contents of its buffer when it is dropped. Therefore, it is absolutely
-    /// critical that users explicitly flush the buffer before dropping a
-    /// `BufWriter`.
-    ///
-    /// This type is an async version of [`std::io::BufWriter`].
-    ///
-    /// [`std::io::BufWriter`]: https://doc.rust-lang.org/std/io/struct.BufWriter.html
+    /// Unlike [`std::io::BufWriter`], this type does not write out the contents of its buffer when
+    /// it is dropped. Therefore, it is important that users explicitly flush the buffer before
+    /// dropping the [`BufWriter`].
     ///
     /// # Examples
     ///
-    /// Let's write the numbers one through ten to a [`TcpStream`]:
-    ///
     /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// use async_std::net::TcpStream;
-    /// use async_std::prelude::*;
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
     ///
-    /// let mut stream = TcpStream::connect("127.0.0.1:34254").await?;
+    /// # blocking::block_on(async {
+    /// let file = Unblock::new(File::create("a.txt")?);
+    /// let mut writer = io::BufWriter::new(file);
     ///
-    /// for i in 0..10 {
-    ///     let arr = [i+1];
-    ///     stream.write(&arr).await?;
-    /// }
-    /// #
-    /// # Ok(()) }) }
+    /// writer.write_all(b"hello").await?;
+    /// writer.flush().await?;
+    /// # std::io::Result::Ok(()) });
     /// ```
-    ///
-    /// Because we're not buffering, we write each one in turn, incurring the
-    /// overhead of a system call per byte written. We can fix this with a
-    /// `BufWriter`:
-    ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// use async_std::io::BufWriter;
-    /// use async_std::net::TcpStream;
-    /// use async_std::prelude::*;
-    ///
-    /// let mut stream = BufWriter::new(TcpStream::connect("127.0.0.1:34254").await?);
-    ///
-    /// for i in 0..10 {
-    ///     let arr = [i+1];
-    ///     stream.write(&arr).await?;
-    /// };
-    ///
-    /// stream.flush().await?;
-    /// #
-    /// # Ok(()) }) }
-    /// ```
-    ///
-    /// By wrapping the stream with a `BufWriter`, these ten writes are all grouped
-    /// together by the buffer, and will all be written out in one system call when
-    /// the `stream` is dropped.
-    ///
-    /// [`Write`]: trait.Write.html
-    /// [`TcpStream::write`]: ../net/struct.TcpStream.html#method.write
-    /// [`TcpStream`]: ../net/struct.TcpStream.html
-    /// [`flush`]: trait.Write.html#tymethod.flush
     pub struct BufWriter<W> {
         #[pin]
         inner: W,
@@ -505,69 +447,32 @@ pin_project! {
     }
 }
 
-/// An error returned by `into_inner` which combines an error that
-/// happened while writing out the buffer, and the buffered writer object
-/// which may be used to recover from the condition.
-///
-/// # Examples
-///
-/// ```no_run
-/// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-/// use async_std::io::BufWriter;
-/// use async_std::net::TcpStream;
-///
-/// let buf_writer = BufWriter::new(TcpStream::connect("127.0.0.1:34251").await?);
-///
-/// // unwrap the TcpStream and flush the buffer
-/// let stream = match buf_writer.into_inner().await {
-///     Ok(s) => s,
-///     Err(e) => {
-///         // Here, e is an IntoInnerError
-///         panic!("An error occurred");
-///     }
-/// };
-/// #
-/// # Ok(()) }) }
-///```
-#[derive(Debug)]
-pub struct IntoInnerError<W>(W, crate::io::Error);
-
 impl<W: AsyncWrite> BufWriter<W> {
-    /// Creates a new `BufWriter` with a default buffer capacity. The default is currently 8 KB,
-    /// but may change in the future.
+    /// Creates a buffered writer with the default buffer capacity.
+    ///
+    /// The default capacity is currently 8 KB, but that may change in the future.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # #![allow(unused_mut)]
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// use async_std::io::BufWriter;
-    /// use async_std::net::TcpStream;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let mut buffer = BufWriter::new(TcpStream::connect("127.0.0.1:34254").await?);
-    /// #
-    /// # Ok(()) }) }
+    /// let mut bytes = Vec::new();
+    /// let writer = io::BufWriter::new(&mut bytes);
     /// ```
     pub fn new(inner: W) -> BufWriter<W> {
         BufWriter::with_capacity(DEFAULT_BUF_SIZE, inner)
     }
 
-    /// Creates a new `BufWriter` with the specified buffer capacity.
+    /// Creates a buffered writer with the specified buffer capacity.
     ///
     /// # Examples
     ///
-    /// Creating a buffer with a buffer of a hundred bytes.
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// ```no_run
-    /// # #![allow(unused_mut)]
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// use async_std::io::BufWriter;
-    /// use async_std::net::TcpStream;
-    ///
-    /// let stream = TcpStream::connect("127.0.0.1:34254").await?;
-    /// let mut buffer = BufWriter::with_capacity(100, stream);
-    /// #
-    /// # Ok(()) }) }
+    /// let mut bytes = Vec::new();
+    /// let writer = io::BufWriter::with_capacity(100, &mut bytes);
     /// ```
     pub fn with_capacity(capacity: usize, inner: W) -> BufWriter<W> {
         BufWriter {
@@ -581,18 +486,13 @@ impl<W: AsyncWrite> BufWriter<W> {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # #![allow(unused_mut)]
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// use async_std::io::BufWriter;
-    /// use async_std::net::TcpStream;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let mut buffer = BufWriter::new(TcpStream::connect("127.0.0.1:34254").await?);
+    /// let mut bytes = Vec::new();
+    /// let writer = io::BufWriter::new(&mut bytes);
     ///
-    /// // We can use reference just like buffer
-    /// let reference = buffer.get_ref();
-    /// #
-    /// # Ok(()) }) }
+    /// let r = writer.get_ref();
     /// ```
     pub fn get_ref(&self) -> &W {
         &self.inner
@@ -600,21 +500,17 @@ impl<W: AsyncWrite> BufWriter<W> {
 
     /// Gets a mutable reference to the underlying writer.
     ///
-    /// It is inadvisable to directly write to the underlying writer.
+    /// It is not advisable to directly write to the underlying writer.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// use async_std::io::BufWriter;
-    /// use async_std::net::TcpStream;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let mut buffer = BufWriter::new(TcpStream::connect("127.0.0.1:34254").await?);
+    /// let mut bytes = Vec::new();
+    /// let mut writer = io::BufWriter::new(&mut bytes);
     ///
-    /// // We can use reference just like buffer
-    /// let reference = buffer.get_mut();
-    /// #
-    /// # Ok(()) }) }
+    /// let r = writer.get_mut();
     /// ```
     pub fn get_mut(&mut self) -> &mut W {
         &mut self.inner
@@ -622,72 +518,56 @@ impl<W: AsyncWrite> BufWriter<W> {
 
     /// Gets a pinned mutable reference to the underlying writer.
     ///
-    /// It is inadvisable to directly write to the underlying writer.
+    /// It is not not advisable to directly write to the underlying writer.
     fn get_pin_mut(self: Pin<&mut Self>) -> Pin<&mut W> {
         self.project().inner
     }
 
-    /// Consumes BufWriter, returning the underlying writer
+    /// Unwraps the buffered writer, returning the underlying writer.
     ///
-    /// This method will not write leftover data, it will be lost.
-    /// For method that will attempt to write before returning the writer see [`poll_into_inner`]
-    ///
-    /// [`poll_into_inner`]: #method.poll_into_inner
+    /// Note that any leftover data in the internal buffer will be lost. If you don't want to lose
+    /// that data, flush the buffered writer before unwrapping it.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// use async_std::io::BufWriter;
-    /// use async_std::net::TcpStream;
-    ///
-    /// let buf_writer = BufWriter::new(TcpStream::connect("127.0.0.1:34251").await?);
-    ///
-    /// // unwrap the TcpStream and flush the buffer
-    /// let stream = buf_writer.into_inner().await.unwrap();
-    /// #
-    /// # Ok(()) }) }
     /// ```
-    pub async fn into_inner(self) -> std::result::Result<W, IntoInnerError<BufWriter<W>>>
-    where
-        Self: Unpin,
-    {
-        let mut this = self;
-        match this.flush().await {
-            Err(e) => Err(IntoInnerError(this, e)),
-            Ok(()) => Ok(this.inner),
-        }
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut bytes = vec![1, 2, 3];
+    /// let writer = io::BufWriter::new(&mut bytes);
+    ///
+    /// writer.write_all([4]).await?;
+    /// assert_eq!(writer.into_inner(), [1, 2, 3, 4]);
+    /// # std::io::Result::Ok(()) });
+    /// ```
+    pub fn into_inner(self) -> W {
+        self.inner
     }
 
-    /// Returns a reference to the internally buffered data.
+    /// Returns a reference to the internal buffer.
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-    /// use async_std::io::BufWriter;
-    /// use async_std::net::TcpStream;
+    /// ```
+    /// use futures_lite::*;
     ///
-    /// let buf_writer = BufWriter::new(TcpStream::connect("127.0.0.1:34251").await?);
+    /// let mut bytes = Vec::new();
+    /// let writer = io::BufWriter::new(&mut bytes);
     ///
-    /// // See how many bytes are currently buffered
-    /// let bytes_buffered = buf_writer.buffer().len();
-    /// #
-    /// # Ok(()) }) }
+    /// // The internal buffer is empty until the first write request.
+    /// assert_eq!(reader.buffer(), &[]);
     /// ```
     pub fn buffer(&self) -> &[u8] {
         &self.buf
     }
 
-    /// Poll buffer flushing until completion
-    ///
-    /// This is used in types that wrap around BufWrite, one such example: [`LineWriter`]
-    ///
-    /// [`LineWriter`]: struct.LineWriter.html
+    /// Flush the buffer.
     fn poll_flush_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let mut this = self.project();
         let len = this.buf.len();
         let mut ret = Ok(());
+
         while *this.written < len {
             match this
                 .inner
@@ -710,10 +590,12 @@ impl<W: AsyncWrite> BufWriter<W> {
                 Poll::Pending => return Poll::Pending,
             }
         }
+
         if *this.written > 0 {
             this.buf.drain(..*this.written);
         }
         *this.written = 0;
+
         Poll::Ready(ret)
     }
 }
@@ -768,34 +650,266 @@ impl<W: AsyncWrite + AsyncSeek> AsyncSeek for BufWriter<W> {
     }
 }
 
-/// Creates a reader that contains no data.
+/// Gives an in-memory buffer a cursor for reading and writing.
 ///
 /// # Examples
 ///
-/// ```rust
-/// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-/// #
-/// use async_std::io;
-/// use async_std::prelude::*;
+/// ```
+/// use futures_lite::*;
 ///
-/// let mut buf = Vec::new();
+/// # blocking::block_on(async {
+/// let mut bytes = b"hello".to_vec();
+/// let mut cursor = io::Cursor::new(&mut bytes);
+///
+/// // Overwrite 'h' with 'H'.
+/// cursor.write_all(b"H").await?;
+///
+/// // Move the cursor one byte forward.
+/// cursor.seek(io::SeekFrom::Current(1)).await?;
+///
+/// // Read a byte.
+/// let mut byte = [0];
+/// cursor.read_exact(&mut byte).await?;
+/// assert_eq!(&byte, b"l");
+///
+/// // Check the final buffer.
+/// assert_eq!(bytes, b"Hello");
+/// # std::io::Result::Ok(()) });
+/// ```
+#[derive(Clone, Debug, Default)]
+pub struct Cursor<T> {
+    inner: std::io::Cursor<T>,
+}
+
+impl<T> Cursor<T> {
+    /// Creates a cursor for an in-memory buffer.
+    ///
+    /// Cursor's initial position is 0 even if the underlying buffer is not empty. Writing using
+    /// [`Cursor`] will overwrite the existing contents unless the cursor is moved to the end of
+    /// the buffer using [`set_position()`][Cursor::set_position()`] or
+    /// [`seek()`][`AsyncSeekExt::seek()`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let cursor = io::Cursor::new(Vec::<u8>::new());
+    /// ```
+    pub fn new(inner: T) -> Cursor<T> {
+        Cursor {
+            inner: std::io::Cursor::new(inner),
+        }
+    }
+
+    /// Gets a reference to the underlying buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let cursor = io::Cursor::new(Vec::<u8>::new());
+    /// let r = cursor.get_ref();
+    /// ```
+    pub fn get_ref(&self) -> &T {
+        self.inner.get_ref()
+    }
+
+    /// Gets a mutable reference to the underlying buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let mut cursor = io::Cursor::new(Vec::<u8>::new());
+    /// let r = cursor.get_mut();
+    /// ```
+    pub fn get_mut(&mut self) -> &mut T {
+        self.inner.get_mut()
+    }
+
+    /// Unwraps the cursor, returning the underlying buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let cursor = io::Cursor::new(vec![1, 2, 3]);
+    /// assert_eq!(cursor.into_inner(), [1, 2, 3]);
+    /// ```
+    pub fn into_inner(self) -> T {
+        self.inner.into_inner()
+    }
+
+    /// Returns the current position of this cursor.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut cursor = io::Cursor::new(b"hello");
+    /// assert_eq!(cursor.position(), 0);
+    ///
+    /// cursor.seek(io::SeekFrom::Start(2)).await?;
+    /// assert_eq!(cursor.position(), 2);
+    /// # std::io::Result::Ok(()) });
+    /// ```
+    pub fn position(&self) -> u64 {
+        self.inner.position()
+    }
+
+    /// Sets the position of this cursor.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let mut cursor = io::Cursor::new(b"hello");
+    /// assert_eq!(cursor.position(), 0);
+    ///
+    /// cursor.set_position(2);
+    /// assert_eq!(cursor.position(), 2);
+    /// ```
+    pub fn set_position(&mut self, pos: u64) {
+        self.inner.set_position(pos)
+    }
+}
+
+impl<T> AsyncSeek for Cursor<T>
+where
+    T: AsRef<[u8]> + Unpin,
+{
+    fn poll_seek(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        pos: SeekFrom,
+    ) -> Poll<Result<u64>> {
+        Poll::Ready(std::io::Seek::seek(&mut self.inner, pos))
+    }
+}
+
+impl<T> AsyncRead for Cursor<T>
+where
+    T: AsRef<[u8]> + Unpin,
+{
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
+    }
+
+    fn poll_read_vectored(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Read::read_vectored(&mut self.inner, bufs))
+    }
+}
+
+impl<T> AsyncBufRead for Cursor<T>
+where
+    T: AsRef<[u8]> + Unpin,
+{
+    fn poll_fill_buf(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<&[u8]>> {
+        Poll::Ready(std::io::BufRead::fill_buf(&mut self.get_mut().inner))
+    }
+
+    fn consume(mut self: Pin<&mut Self>, amt: usize) {
+        std::io::BufRead::consume(&mut self.inner, amt)
+    }
+}
+
+impl AsyncWrite for Cursor<&mut [u8]> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        bufs: &[IoSlice<'_>],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Write::write_vectored(&mut self.inner, bufs))
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(std::io::Write::flush(&mut self.inner))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush(cx)
+    }
+}
+
+impl AsyncWrite for Cursor<&mut Vec<u8>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush(cx)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(std::io::Write::flush(&mut self.inner))
+    }
+}
+
+impl AsyncWrite for Cursor<Vec<u8>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush(cx)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(std::io::Write::flush(&mut self.inner))
+    }
+}
+
+/// Creates an empty reader.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// # blocking::block_on(async {
 /// let mut reader = io::empty();
-/// reader.read_to_end(&mut buf).await?;
 ///
-/// assert!(buf.is_empty());
-/// #
-/// # Ok(()) }) }
+/// let mut contents = Vec::new();
+/// reader.read_to_end(&mut contents).await?;
+/// assert!(contents.is_empty());
+/// # std::io::Result::Ok(()) });
 /// ```
 pub fn empty() -> Empty {
     Empty { _private: () }
 }
 
-/// A reader that contains no data.
-///
-/// This reader is created by the [`empty`] function. See its
-/// documentation for more.
-///
-/// [`empty`]: fn.empty.html
+/// Reader for the [`empty()`] function.
 pub struct Empty {
     _private: (),
 }
@@ -823,35 +937,26 @@ impl AsyncBufRead for Empty {
     fn consume(self: Pin<&mut Self>, _: usize) {}
 }
 
-/// Creates an instance of a reader that infinitely repeats one byte.
+/// Creates an infinite reader that reads the same byte repeatedly.
 ///
-/// All reads from this reader will succeed by filling the specified buffer with the given byte.
+/// # Examples
 ///
-/// ## Examples
+/// ```
+/// use futures_lite::*;
 ///
-/// ```rust
-/// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-/// #
-/// use async_std::io;
-/// use async_std::prelude::*;
+/// # blocking::block_on(async {
+/// let mut reader = io::repeat(b'a');
 ///
-/// let mut buffer = [0; 3];
-/// io::repeat(0b101).read_exact(&mut buffer).await?;
-///
-/// assert_eq!(buffer, [0b101, 0b101, 0b101]);
-/// #
-/// # Ok(()) }) }
+/// let mut contents = vec![0; 5];
+/// reader.read_exact(&mut contents).await?;
+/// assert_eq!(contents, b"aaaaa");
+/// # std::io::Result::Ok(()) });
 /// ```
 pub fn repeat(byte: u8) -> Repeat {
     Repeat { byte }
 }
 
-/// A reader which yields one byte over and over and over and over and over and...
-///
-/// This reader is created by the [`repeat`] function. See its
-/// documentation for more.
-///
-/// [`repeat`]: fn.repeat.html
+/// Reader for the [`repeat()`] function.
 #[derive(Debug)]
 pub struct Repeat {
     byte: u8,
@@ -871,27 +976,19 @@ impl AsyncRead for Repeat {
 ///
 /// # Examples
 ///
-/// ```rust
-/// # fn main() -> std::io::Result<()> { async_std::task::block_on(async {
-/// #
-/// use async_std::io;
-/// use async_std::prelude::*;
+/// ```
+/// use futures_lite::*;
 ///
+/// # blocking::block_on(async {
 /// let mut writer = io::sink();
-/// writer.write(b"hello world").await?;
-/// #
-/// # Ok(()) }) }
+/// writer.write_all(b"hello").await?;
+/// # std::io::Result::Ok(()) });
 /// ```
 pub fn sink() -> Sink {
     Sink { _private: () }
 }
 
-/// A writer that consumes and drops all data.
-///
-/// This writer is constructed by the [`sink`] function. See its documentation
-/// for more.
-///
-/// [`sink`]: fn.sink.html
+/// Writer for the [`sink()`] function.
 #[derive(Debug)]
 pub struct Sink {
     _private: (),
@@ -914,7 +1011,30 @@ impl AsyncWrite for Sink {
     }
 }
 
+/// Allows reading from a buffered byte stream.
 pub trait AsyncBufReadExt: AsyncBufRead {
+    /// Reads all bytes and appends them into `buf` until the delimiter `byte` or EOF is found.
+    ///
+    /// This function will read bytes from the underlying stream until the delimiter or EOF is
+    /// found. All bytes up to and including the delimiter (if found) will be appended to `buf`.
+    ///
+    /// If successful, returns the total number of bytes read.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
+    ///
+    /// # blocking::block_on(async {
+    /// let file = Unblock::new(File::open("a.txt")?);
+    /// let mut reader = io::BufReader::new(file);
+    ///
+    /// let mut buf = Vec::new();
+    /// let n = reader.read_until(b'\n', &mut buf).await?;
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn read_until<'a>(&'a mut self, byte: u8, buf: &'a mut Vec<u8>) -> ReadUntilFuture<'_, Self>
     where
         Self: Unpin,
@@ -927,18 +1047,66 @@ pub trait AsyncBufReadExt: AsyncBufRead {
         }
     }
 
+    /// Reads all bytes and appends them into `buf` until a newline (the 0xA byte) or EOF is found.
+    ///
+    /// This function will read bytes from the underlying stream until the newline delimiter (the
+    /// 0xA byte) or EOF is found. All bytes up to, and including, the newline delimiter (if found)
+    /// will be appended to `buf`.
+    ///
+    /// If successful, returns the total number of bytes read.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
+    ///
+    /// # blocking::block_on(async {
+    /// let file = Unblock::new(File::open("a.txt")?);
+    /// let mut reader = io::BufReader::new(file);
+    ///
+    /// let mut line = String::new();
+    /// let n = reader.read_line(&mut line).await?;
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn read_line<'a>(&'a mut self, buf: &'a mut String) -> ReadLineFuture<'_, Self>
     where
         Self: Unpin,
     {
         ReadLineFuture {
             reader: self,
-            bytes: unsafe { mem::replace(buf.as_mut_vec(), Vec::new()) },
             buf,
+            bytes: Vec::new(),
             read: 0,
         }
     }
 
+    /// Returns a stream over the lines of this byte stream.
+    ///
+    /// The stream returned from this function yields items of type
+    /// [`io::Result`][`crate::io::Result`]`<`[`String`]`>`.
+    /// Each string returned will *not* have a newline byte (the 0xA byte) or CRLF (0xD, 0xA bytes)
+    /// at the end.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use blocking::Unblock;
+    /// use futures_lite::*;
+    /// use std::fs::File;
+    ///
+    /// # blocking::block_on(async {
+    /// let file = Unblock::new(File::open("a.txt")?);
+    /// let reader = io::BufReader::new(file);
+    /// let mut lines = reader.lines();
+    ///
+    /// let mut line = String::new();
+    /// while let Some(line) = lines.next().await {
+    ///     println!("{}", line?);
+    /// }
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn lines(self) -> Lines<Self>
     where
         Self: Unpin + Sized,
@@ -951,6 +1119,26 @@ pub trait AsyncBufReadExt: AsyncBufRead {
         }
     }
 
+    /// Returns a stream over the contents of this reader split on the specified `byte`.
+    ///
+    /// The stream returned from this function yields items of type
+    /// [`io::Result`][`crate::io::Result`]`<`[`Vec<u8>`][`Vec`]`>`.
+    /// Each vector returned will *not* have the delimiter byte at the end.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let cursor = io::Cursor::new(b"lorem-ipsum-dolor");
+    /// let items: Vec<Vec<u8>> = cursor.split(b'-').try_collect().await?;
+    ///
+    /// assert_eq!(items[0], b"lorem");
+    /// assert_eq!(items[1], b"ipsum");
+    /// assert_eq!(items[2], b"dolor");
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn split(self, byte: u8) -> Split<Self>
     where
         Self: Sized,
@@ -966,6 +1154,8 @@ pub trait AsyncBufReadExt: AsyncBufRead {
 
 impl<R: AsyncBufRead + ?Sized> AsyncBufReadExt for R {}
 
+/// Future for the [`AsyncBufReadExt::read_until()`] method.
+#[derive(Debug)]
 pub struct ReadUntilFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     byte: u8,
@@ -997,6 +1187,7 @@ fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
     loop {
         let (done, used) = {
             let available = ready!(reader.as_mut().poll_fill_buf(cx))?;
+
             if let Some(i) = memchr::memchr(byte, available) {
                 buf.extend_from_slice(&available[..=i]);
                 (true, i + 1)
@@ -1005,14 +1196,18 @@ fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
                 (false, available.len())
             }
         };
+
         reader.as_mut().consume(used);
         *read += used;
+
         if done || used == 0 {
             return Poll::Ready(Ok(mem::replace(read, 0)));
         }
     }
 }
 
+/// Future for the [`AsyncBufReadExt::read_line()`] method.
+#[derive(Debug)]
 pub struct ReadLineFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut String,
@@ -1033,37 +1228,23 @@ impl<T: AsyncBufRead + Unpin + ?Sized> Future for ReadLineFuture<'_, T> {
         let reader = Pin::new(reader);
 
         let ret = ready!(read_until_internal(reader, cx, b'\n', bytes, read));
-        if str::from_utf8(&bytes).is_err() {
-            Poll::Ready(ret.and_then(|_| {
+        match str::from_utf8(&bytes) {
+            Ok(s) => {
+                buf.push_str(s);
+                Poll::Ready(ret)
+            }
+            Err(_) => Poll::Ready(ret.and_then(|_| {
                 Err(Error::new(
                     ErrorKind::InvalidData,
                     "stream did not contain valid UTF-8",
                 ))
-            }))
-        } else {
-            #[allow(clippy::debug_assert_with_mut_call)]
-            {
-                debug_assert!(buf.is_empty());
-                debug_assert_eq!(*read, 0);
-            }
-
-            // Safety: `bytes` is a valid UTF-8 because `str::from_utf8` returned `Ok`.
-            mem::swap(unsafe { buf.as_mut_vec() }, bytes);
-            Poll::Ready(ret)
+            })),
         }
     }
 }
 
 pin_project! {
-    /// A stream of lines in a byte stream.
-    ///
-    /// This stream is created by the [`lines`] method on types that implement [`BufRead`].
-    ///
-    /// This type is an async version of [`std::io::Lines`].
-    ///
-    /// [`lines`]: trait.BufRead.html#method.lines
-    /// [`BufRead`]: trait.BufRead.html
-    /// [`std::io::Lines`]: https://doc.rust-lang.org/std/io/struct.Lines.html
+    /// Stream for the [`AsyncBufReadExt::lines()`] method.
     #[derive(Debug)]
     pub struct Lines<R> {
         #[pin]
@@ -1079,6 +1260,7 @@ impl<R: AsyncBufRead> Stream for Lines<R> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
+
         let n = ready!(read_line_internal(
             this.reader,
             cx,
@@ -1089,6 +1271,7 @@ impl<R: AsyncBufRead> Stream for Lines<R> {
         if n == 0 && this.buf.is_empty() {
             return Poll::Ready(None);
         }
+
         if this.buf.ends_with('\n') {
             this.buf.pop();
             if this.buf.ends_with('\r') {
@@ -1107,32 +1290,23 @@ fn read_line_internal<R: AsyncBufRead + ?Sized>(
     read: &mut usize,
 ) -> Poll<Result<usize>> {
     let ret = ready!(read_until_internal(reader, cx, b'\n', bytes, read));
-    if str::from_utf8(&bytes).is_err() {
-        Poll::Ready(ret.and_then(|_| {
+
+    match str::from_utf8(&bytes) {
+        Ok(s) => {
+            buf.push_str(s);
+            Poll::Ready(ret)
+        }
+        Err(_) => Poll::Ready(ret.and_then(|_| {
             Err(Error::new(
                 ErrorKind::InvalidData,
                 "stream did not contain valid UTF-8",
             ))
-        }))
-    } else {
-        debug_assert!(buf.is_empty());
-        debug_assert_eq!(*read, 0);
-        // Safety: `bytes` is a valid UTF-8 because `str::from_utf8` returned `Ok`.
-        mem::swap(unsafe { buf.as_mut_vec() }, bytes);
-        Poll::Ready(ret)
+        })),
     }
 }
 
 pin_project! {
-    /// A stream over the contents of an instance of [`BufRead`] split on a particular byte.
-    ///
-    /// This stream is created by the [`split`] method on types that implement [`BufRead`].
-    ///
-    /// This type is an async version of [`std::io::Split`].
-    ///
-    /// [`split`]: trait.BufRead.html#method.lines
-    /// [`BufRead`]: trait.BufRead.html
-    /// [`std::io::Split`]: https://doc.rust-lang.org/std/io/struct.Split.html
+    /// Stream for the [`AsyncBufReadExt::split()`] method.
     #[derive(Debug)]
     pub struct Split<R> {
         #[pin]
@@ -1148,6 +1322,7 @@ impl<R: AsyncBufRead> Stream for Split<R> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
+
         let n = ready!(read_until_internal(
             this.reader,
             cx,
@@ -1158,6 +1333,7 @@ impl<R: AsyncBufRead> Stream for Split<R> {
         if n == 0 && this.buf.is_empty() {
             return Poll::Ready(None);
         }
+
         if this.buf[this.buf.len() - 1] == *this.delim {
             this.buf.pop();
         }
@@ -1183,6 +1359,24 @@ pub trait AsyncReadExt: AsyncRead {
         ReadVectoredFuture { reader: self, bufs }
     }
 
+    /// Reads the entire contents and appends them to a [`Vec`].
+    ///
+    /// On success, returns the total number of bytes read.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut reader = io::Cursor::new(vec![1, 2, 3]);
+    /// let mut contents = Vec::new();
+    ///
+    /// let n = reader.read_to_end(&mut contents).await?;
+    /// assert_eq!(n, 3);
+    /// assert_eq!(contents, [1, 2, 3]);
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn read_to_end<'a>(&'a mut self, buf: &'a mut Vec<u8>) -> ReadToEndFuture<'a, Self>
     where
         Self: Unpin,
@@ -1195,16 +1389,33 @@ pub trait AsyncReadExt: AsyncRead {
         }
     }
 
+    /// Reads the entire contents and appends them to a [`String`].
+    ///
+    /// On success, returns the total number of bytes read.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// let mut reader = io::Cursor::new(&b"hello");
+    /// let mut contents = String::new();
+    ///
+    /// let n = reader.read_to_string(&mut contents).await?;
+    /// assert_eq!(n, 5);
+    /// assert_eq!(contents, "hello");
+    /// # std::io::Result::Ok(()) });
+    /// ```
     fn read_to_string<'a>(&'a mut self, buf: &'a mut String) -> ReadToStringFuture<'a, Self>
     where
         Self: Unpin,
     {
-        let start_len = buf.len();
         ReadToStringFuture {
             reader: self,
-            bytes: unsafe { mem::replace(buf.as_mut_vec(), Vec::new()) },
             buf,
-            start_len,
+            bytes: Vec::new(),
+            start_len: 0,
         }
     }
 
@@ -1243,6 +1454,7 @@ pub trait AsyncReadExt: AsyncRead {
 
 impl<R: AsyncRead + ?Sized> AsyncReadExt for R {}
 
+/// Future for the [`AsyncReadExt::read()`] method.
 pub struct ReadFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut [u8],
@@ -1257,6 +1469,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadFuture<'_, T> {
     }
 }
 
+/// Future for the [`AsyncReadExt::read_vectored()`] method.
 pub struct ReadVectoredFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     bufs: &'a mut [IoSliceMut<'a>],
@@ -1271,6 +1484,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadVectoredFuture<'_, T> {
     }
 }
 
+/// Future for the [`AsyncReadExt::read_to_end()`] method.
 pub struct ReadToEndFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut Vec<u8>,
@@ -1290,6 +1504,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToEndFuture<'_, T> {
     }
 }
 
+/// Future for the [`AsyncReadExt::read_to_string()`] method.
 pub struct ReadToStringFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut String,
@@ -1310,22 +1525,17 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToStringFuture<'_, T> {
         let reader = Pin::new(reader);
 
         let ret = ready!(read_to_end_internal(reader, cx, bytes, *start_len));
-        if str::from_utf8(&bytes).is_err() {
-            Poll::Ready(ret.and_then(|_| {
+        match str::from_utf8(&bytes) {
+            Ok(s) => {
+                buf.push_str(s);
+                Poll::Ready(ret)
+            }
+            Err(_) => Poll::Ready(ret.and_then(|_| {
                 Err(Error::new(
                     ErrorKind::InvalidData,
                     "stream did not contain valid UTF-8",
                 ))
-            }))
-        } else {
-            #[allow(clippy::debug_assert_with_mut_call)]
-            {
-                debug_assert!(buf.is_empty());
-            }
-
-            // Safety: `bytes` is a valid UTF-8 because `str::from_utf8` returned `Ok`.
-            mem::swap(unsafe { buf.as_mut_vec() }, bytes);
-            Poll::Ready(ret)
+            })),
         }
     }
 }
@@ -1352,9 +1562,7 @@ fn read_to_end_internal<R: AsyncRead + ?Sized>(
 
     impl Drop for Guard<'_> {
         fn drop(&mut self) {
-            unsafe {
-                self.buf.set_len(self.len);
-            }
+            self.buf.resize(self.len, 0);
         }
     }
 
@@ -1365,14 +1573,9 @@ fn read_to_end_internal<R: AsyncRead + ?Sized>(
     let ret;
     loop {
         if g.len == g.buf.len() {
-            unsafe {
-                g.buf.reserve(32);
-                let capacity = g.buf.capacity();
-                g.buf.set_len(capacity);
-                for byte in &mut g.buf[g.len..] {
-                    *byte = 0;
-                }
-            }
+            g.buf.reserve(32);
+            let capacity = g.buf.capacity();
+            g.buf.resize(capacity, 0);
         }
 
         match ready!(rd.as_mut().poll_read(cx, &mut g.buf[g.len..])) {
@@ -1391,6 +1594,7 @@ fn read_to_end_internal<R: AsyncRead + ?Sized>(
     ret
 }
 
+/// Future for the [`AsyncReadExt::read_exact()`] method.
 pub struct ReadExactFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut [u8],
@@ -1417,12 +1621,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadExactFuture<'_, T> {
 }
 
 pin_project! {
-    /// Reader adaptor which limits the bytes read from an underlying reader.
-    ///
-    /// This struct is generally created by calling [`take`] on a reader.
-    /// Please see the documentation of [`take`] for more details.
-    ///
-    /// [`take`]: trait.Read.html#method.take
+    /// Reader for the [`AsyncReadExt::take()`] method.
     #[derive(Debug)]
     pub struct Take<T> {
         #[pin]
@@ -1440,12 +1639,10 @@ impl<T> Take<T> {
     /// This instance may reach `EOF` after reading fewer bytes than indicated by
     /// this method if the underlying [`Read`] instance reaches EOF.
     ///
-    /// [`Read`]: trait.Read.html
-    ///
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> async_std::io::Result<()> { async_std::task::block_on(async {
+    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
     /// #
     /// use async_std::prelude::*;
     /// use async_std::fs::File;
@@ -1471,7 +1668,7 @@ impl<T> Take<T> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> async_std::io::Result<()> { async_std::task::block_on(async {
+    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
     /// #
     /// use async_std::prelude::*;
     /// use async_std::fs::File;
@@ -1495,7 +1692,7 @@ impl<T> Take<T> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> async_std::io::Result<()> { async_std::task::block_on(async {
+    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
     /// #
     /// use async_std::prelude::*;
     /// use async_std::fs::File;
@@ -1519,7 +1716,7 @@ impl<T> Take<T> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> async_std::io::Result<()> { async_std::task::block_on(async {
+    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
     /// #
     /// use async_std::prelude::*;
     /// use async_std::fs::File;
@@ -1547,7 +1744,7 @@ impl<T> Take<T> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> async_std::io::Result<()> { async_std::task::block_on(async {
+    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
     /// #
     /// use async_std::prelude::*;
     /// use async_std::fs::File;
@@ -1628,12 +1825,7 @@ impl<T: AsyncBufRead> AsyncBufRead for Take<T> {
     }
 }
 
-/// A stream over `u8` values of a reader.
-///
-/// This struct is generally created by calling [`bytes`] on a reader.
-/// Please see the documentation of [`bytes`] for more details.
-///
-/// [`bytes`]: trait.Read.html#method.bytes
+/// Reader for the [`AsyncReadExt::bytes()`] method.
 #[derive(Debug)]
 pub struct Bytes<T> {
     inner: T,
@@ -1657,12 +1849,7 @@ impl<T: AsyncRead + Unpin> Stream for Bytes<T> {
 }
 
 pin_project! {
-    /// Adaptor to chain together two readers.
-    ///
-    /// This struct is generally created by calling [`chain`] on a reader.
-    /// Please see the documentation of [`chain`] for more details.
-    ///
-    /// [`chain`]: trait.Read.html#method.chain
+    /// Reader for the [`AsyncReadExt::chain()`] method.
     pub struct Chain<T, U> {
         #[pin]
         first: T,
@@ -1678,7 +1865,7 @@ impl<T, U> Chain<T, U> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> async_std::io::Result<()> { async_std::task::block_on(async {
+    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
     /// #
     /// use async_std::prelude::*;
     /// use async_std::fs::File;
@@ -1700,7 +1887,7 @@ impl<T, U> Chain<T, U> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> async_std::io::Result<()> { async_std::task::block_on(async {
+    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
     /// #
     /// use async_std::prelude::*;
     /// use async_std::fs::File;
@@ -1726,7 +1913,7 @@ impl<T, U> Chain<T, U> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn main() -> async_std::io::Result<()> { async_std::task::block_on(async {
+    /// # fn main() -> async_std::Result<()> { async_std::task::block_on(async {
     /// #
     /// use async_std::prelude::*;
     /// use async_std::fs::File;
@@ -1831,6 +2018,7 @@ pub trait AsyncSeekExt: AsyncSeek {
 
 impl<S: AsyncSeek + ?Sized> AsyncSeekExt for S {}
 
+/// Future for the [`AsyncSeekExt::seek()`] method.
 pub struct SeekFuture<'a, T: Unpin + ?Sized> {
     seeker: &'a mut T,
     pos: SeekFrom,
@@ -1877,6 +2065,7 @@ pub trait AsyncWriteExt: AsyncWrite {
 
 impl<R: AsyncWrite + ?Sized> AsyncWriteExt for R {}
 
+/// Future for the [`AsyncWriteExt::write()`] method.
 pub struct WriteFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     buf: &'a [u8],
@@ -1891,6 +2080,7 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteFuture<'_, T> {
     }
 }
 
+/// Future for the [`AsyncWriteExt::flush()`] method.
 pub struct FlushFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
 }
@@ -1903,6 +2093,7 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for FlushFuture<'_, T> {
     }
 }
 
+/// Future for the [`AsyncWriteExt::write_vectored()`] method.
 pub struct WriteVectoredFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     bufs: &'a [IoSlice<'a>],
@@ -1917,6 +2108,7 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteVectoredFuture<'_, T> {
     }
 }
 
+/// Future for the [`AsyncWriteExt::write_all()`] method.
 pub struct WriteAllFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     buf: &'a [u8],
