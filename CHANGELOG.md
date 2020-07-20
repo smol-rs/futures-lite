@@ -1,3 +1,7 @@
+# Version 0.1.6
+
+- Add `boxed()`, `boxed_local()`, `Boxed`, and `BoxedLocal`.
+
 # Version 0.1.5
 
 - Add `fold()` and `try_fold()`.
