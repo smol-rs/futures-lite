@@ -451,18 +451,35 @@ where
     }
 }
 
-impl<T: ?Sized> FutureExt for T where T: Future {}
+/// Type alias for `Pin<Box<dyn Future<Output = T> + Send>>`.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// // These two lines are equivalent:
+/// let f1: future::Boxed<i32> = async { 1 + 2 }.boxed();
+/// let f2: future::Boxed<i32> = Box::pin(async { 1 + 2 });
+/// ```
+pub type Boxed<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
-/// An owned dynamically typed [`Future`] for use in cases where you can't
-/// statically type your result or need to add some indirection.
-pub type Boxed<T> = Pin<std::boxed::Box<dyn Future<Output = T> + Send>>;
-
-/// `BoxFuture`, but without the `Send` requirement.
-pub type BoxedLocal<T> = Pin<std::boxed::Box<dyn Future<Output = T>>>;
+/// Type alias for `Pin<Box<dyn Future<Output = T>>>`.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// // These two lines are equivalent:
+/// let f1: future::BoxedLocal<i32> = async { 1 + 2 }.boxed_local();
+/// let f2: future::BoxedLocal<i32> = Box::pin(async { 1 + 2 });
+/// ```
+pub type BoxedLocal<T> = Pin<Box<dyn Future<Output = T>>>;
 
 /// Extension trait for [`Future`].
 pub trait FutureExt: Future {
-    /// Wrap the future in a Box, pinning it.
+    /// Boxes the future and changes its type to `dyn Future<Output = T> + Send`.
     ///
     /// # Examples
     ///
@@ -470,12 +487,12 @@ pub trait FutureExt: Future {
     /// use futures_lite::*;
     ///
     /// # blocking::block_on(async {
-    /// async fn select<F: Future + Send>(_a: F, _b: F) { }
-    ///
     /// let a = future::ready('a');
     /// let b = future::pending();
     ///
-    /// select(a.boxed(), b.boxed());
+    /// // Futures of different types can be stored in
+    /// // the same collection when they are boxed:
+    /// let futures = vec![a.boxed(), b.boxed()];
     /// # })
     /// ```
     fn boxed(self) -> Boxed<Self::Output>
@@ -485,7 +502,7 @@ pub trait FutureExt: Future {
         Box::pin(self)
     }
 
-    /// Wrap the future in a Box which can't be sent to threads, pinning it.
+    /// Boxes the future and changes its type to `dyn Future<Output = T>`.
     ///
     /// # Examples
     ///
@@ -493,12 +510,12 @@ pub trait FutureExt: Future {
     /// use futures_lite::*;
     ///
     /// # blocking::block_on(async {
-    /// async fn select_no_send<F: Future>(_a: F, _b: F) { }
-    ///
     /// let a = future::ready('a');
     /// let b = future::pending();
     ///
-    /// select_no_send(a.boxed_local(), b.boxed_local());
+    /// // Futures of different types can be stored in
+    /// // the same collection when they are boxed:
+    /// let futures = vec![a.boxed_local(), b.boxed_local()];
     /// # })
     /// ```
     fn boxed_local(self) -> BoxedLocal<Self::Output>
@@ -508,3 +525,5 @@ pub trait FutureExt: Future {
         Box::pin(self)
     }
 }
+
+impl<T: ?Sized> FutureExt for T where T: Future {}

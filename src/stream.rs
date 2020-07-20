@@ -631,7 +631,7 @@ pub trait StreamExt: Stream {
         }
     }
 
-    /// Wrap the stream in a Box, pinning it.
+    /// Boxes the stream and changes its type to `dyn Stream<Item = T> + Send`.
     ///
     /// # Examples
     ///
@@ -639,14 +639,14 @@ pub trait StreamExt: Stream {
     /// use futures_lite::*;
     ///
     /// # blocking::block_on(async {
-    /// fn select<F: Stream + Send>(_a: F, _b: F) {}
+    /// let a = stream::once(1);
+    /// let b = stream::empty();
     ///
-    /// let mut a = stream::once(1);
-    /// let mut b = stream::empty();
-    ///
-    /// select(a.boxed(), b.boxed());
-    ///
+    /// // Streams of different types can be stored in
+    /// // the same collection when they are boxed:
+    /// let streams = vec![a.boxed(), b.boxed()];
     /// # })
+    /// ```
     fn boxed(self) -> Boxed<Self::Item>
     where
         Self: Sized + Send + 'static,
@@ -654,7 +654,7 @@ pub trait StreamExt: Stream {
         Box::pin(self)
     }
 
-    /// Wrap the stream in a Box which can't be sent to threads, pinning it.
+    /// Boxes the stream and changes its type to `dyn Stream<Item = T>`.
     ///
     /// # Examples
     ///
@@ -662,14 +662,14 @@ pub trait StreamExt: Stream {
     /// use futures_lite::*;
     ///
     /// # blocking::block_on(async {
-    /// fn select_no_send<F: Stream>(_a: F, _b: F) {}
+    /// let a = stream::once(1);
+    /// let b = stream::empty();
     ///
-    /// let mut a = stream::once(1);
-    /// let mut b = stream::empty();
-    ///
-    /// select_no_send(a.boxed_local(), b.boxed_local());
-    ///
+    /// // Streams of different types can be stored in
+    /// // the same collection when they are boxed:
+    /// let streams = vec![a.boxed_local(), b.boxed_local()];
     /// # })
+    /// ```
     fn boxed_local(self) -> BoxedLocal<Self::Item>
     where
         Self: Sized + 'static,
@@ -680,12 +680,31 @@ pub trait StreamExt: Stream {
 
 impl<T: ?Sized> StreamExt for T where T: Stream {}
 
-/// An owned dynamically typed [`Stream`] for use in cases where you can't
-/// statically type your result or need to add some indirection.
-pub type Boxed<T> = Pin<std::boxed::Box<dyn Stream<Item = T> + Send>>;
+/// Type alias for `Pin<Box<dyn Stream<Item = T> + Send>>`.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// // These two lines are equivalent:
+/// let s1: stream::Boxed<i32> = stream::once(7).boxed();
+/// let s2: stream::Boxed<i32> = Box::pin(stream::once(7));
+/// ```
+pub type Boxed<T> = Pin<Box<dyn Stream<Item = T> + Send>>;
 
-/// `BoxStream`, but without the `Send` requirement.
-pub type BoxedLocal<T> = Pin<std::boxed::Box<dyn Stream<Item = T>>>;
+/// Type alias for `Pin<Box<dyn Stream<Item = T>>>`.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// // These two lines are equivalent:
+/// let s1: stream::BoxedLocal<i32> = stream::once(7).boxed_local();
+/// let s2: stream::BoxedLocal<i32> = Box::pin(stream::once(7));
+/// ```
+pub type BoxedLocal<T> = Pin<Box<dyn Stream<Item = T>>>;
 
 /// Future for the [`StreamExt::next()`] method.
 #[derive(Debug)]
