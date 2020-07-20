@@ -28,7 +28,6 @@ use std::task::{Context, Poll};
 
 #[doc(no_inline)]
 pub use futures_core::stream::Stream;
-use futures_core::stream::{BoxStream, LocalBoxStream};
 use pin_project_lite::pin_project;
 
 use crate::ready;
@@ -648,9 +647,9 @@ pub trait StreamExt: Stream {
     /// select(a.boxed(), b.boxed());
     ///
     /// # })
-    fn boxed<'a>(self) -> BoxStream<'a, Self::Item>
+    fn boxed(self) -> Boxed<Self::Item>
     where
-        Self: Sized + Send + 'a,
+        Self: Sized + Send + 'static,
     {
         Box::pin(self)
     }
@@ -671,15 +670,22 @@ pub trait StreamExt: Stream {
     /// select_no_send(a.boxed_local(), b.boxed_local());
     ///
     /// # })
-    fn boxed_local<'a>(self) -> LocalBoxStream<'a, Self::Item>
+    fn boxed_local(self) -> BoxedLocal<Self::Item>
     where
-        Self: Sized + 'a,
+        Self: Sized + 'static,
     {
         Box::pin(self)
     }
 }
 
 impl<T: ?Sized> StreamExt for T where T: Stream {}
+
+/// An owned dynamically typed [`Stream`] for use in cases where you can't
+/// statically type your result or need to add some indirection.
+pub type Boxed<T> = Pin<std::boxed::Box<dyn Stream<Item = T> + Send>>;
+
+/// `BoxStream`, but without the `Send` requirement.
+pub type BoxedLocal<T> = Pin<std::boxed::Box<dyn Stream<Item = T>>>;
 
 /// Future for the [`StreamExt::next()`] method.
 #[derive(Debug)]

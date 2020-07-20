@@ -25,7 +25,6 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures_core::future::{BoxFuture, LocalBoxFuture};
 use pin_project_lite::pin_project;
 
 /// Creates a future that is always pending.
@@ -454,6 +453,13 @@ where
 
 impl<T: ?Sized> FutureExt for T where T: Future {}
 
+/// An owned dynamically typed [`Future`] for use in cases where you can't
+/// statically type your result or need to add some indirection.
+pub type Boxed<T> = Pin<std::boxed::Box<dyn Future<Output = T> + Send>>;
+
+/// `BoxFuture`, but without the `Send` requirement.
+pub type BoxedLocal<T> = Pin<std::boxed::Box<dyn Future<Output = T>>>;
+
 /// Extension trait for [`Future`].
 pub trait FutureExt: Future {
     /// Wrap the future in a Box, pinning it.
@@ -472,9 +478,9 @@ pub trait FutureExt: Future {
     /// select(a.boxed(), b.boxed());
     /// # })
     /// ```
-    fn boxed<'a>(self) -> BoxFuture<'a, Self::Output>
+    fn boxed(self) -> Boxed<Self::Output>
     where
-        Self: Sized + Send + 'a,
+        Self: Sized + Send + 'static,
     {
         Box::pin(self)
     }
@@ -495,9 +501,9 @@ pub trait FutureExt: Future {
     /// select_no_send(a.boxed_local(), b.boxed_local());
     /// # })
     /// ```
-    fn boxed_local<'a>(self) -> LocalBoxFuture<'a, Self::Output>
+    fn boxed_local(self) -> BoxedLocal<Self::Output>
     where
-        Self: Sized + 'a,
+        Self: Sized + 'static,
     {
         Box::pin(self)
     }
