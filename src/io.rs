@@ -24,6 +24,7 @@
 //! ```
 
 // TODO: Async version of std::io::LineWriter
+// TODO: AssertAsync (a clone of AllowStdIo)
 
 use std::cmp;
 use std::fmt;
