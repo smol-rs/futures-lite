@@ -28,6 +28,7 @@ use std::task::{Context, Poll};
 
 #[doc(no_inline)]
 pub use futures_core::stream::Stream;
+use futures_core::stream::{BoxStream, LocalBoxStream};
 use pin_project_lite::pin_project;
 
 use crate::ready;
@@ -629,6 +630,52 @@ pub trait StreamExt: Stream {
             f,
             acc: Some(init),
         }
+    }
+
+    /// Wrap the stream in a Box, pinning it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// fn select<F: stream::Stream + Send>(_a: F, _b: F) {}
+    ///
+    /// let mut a = stream::once(1);
+    /// let mut b = stream::empty();
+    ///
+    /// select(a.boxed(), b.boxed());
+    ///
+    /// # })
+    fn boxed<'a>(self) -> BoxStream<'a, Self::Item>
+    where
+        Self: Sized + Send + 'a,
+    {
+        Box::pin(self)
+    }
+
+    /// Wrap the stream in a Box which can't be sent to threads, pinning it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// fn select<F: stream::Stream>(_a: F, _b: F) {}
+    ///
+    /// let mut a = stream::once(1);
+    /// let mut b = stream::empty();
+    ///
+    /// select(a.boxed_local(), b.boxed_local());
+    ///
+    /// # })
+    fn boxed_local<'a>(self) -> LocalBoxStream<'a, Self::Item>
+    where
+        Self: Sized + 'a,
+    {
+        Box::pin(self)
     }
 }
 
