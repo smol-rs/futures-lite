@@ -640,7 +640,7 @@ pub trait StreamExt: Stream {
     /// use futures_lite::*;
     ///
     /// # blocking::block_on(async {
-    /// fn select<F: stream::Stream + Send>(_a: F, _b: F) {}
+    /// fn select<F: Stream + Send>(_a: F, _b: F) {}
     ///
     /// let mut a = stream::once(1);
     /// let mut b = stream::empty();
@@ -663,12 +663,12 @@ pub trait StreamExt: Stream {
     /// use futures_lite::*;
     ///
     /// # blocking::block_on(async {
-    /// fn select<F: stream::Stream>(_a: F, _b: F) {}
+    /// fn select_no_send<F: Stream>(_a: F, _b: F) {}
     ///
     /// let mut a = stream::once(1);
     /// let mut b = stream::empty();
     ///
-    /// select(a.boxed_local(), b.boxed_local());
+    /// select_no_send(a.boxed_local(), b.boxed_local());
     ///
     /// # })
     fn boxed_local<'a>(self) -> LocalBoxStream<'a, Self::Item>

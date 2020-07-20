@@ -42,6 +42,8 @@ pub use futures_core::Stream;
 pub use futures_io::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncWrite};
 
 #[doc(no_inline)]
+pub use crate::future::FutureExt;
+#[doc(no_inline)]
 pub use crate::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 #[doc(no_inline)]
 pub use crate::stream::StreamExt;

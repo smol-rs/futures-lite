@@ -25,6 +25,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use futures_core::future::{BoxFuture, LocalBoxFuture};
 use pin_project_lite::pin_project;
 
 /// Creates a future that is always pending.
@@ -448,5 +449,56 @@ where
             }
         }
         Poll::Pending
+    }
+}
+
+impl<T: ?Sized> FutureExt for T where T: Future {}
+
+/// Extension trait for [`Future`].
+pub trait FutureExt: Future {
+    /// Wrap the future in a Box, pinning it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// async fn select<F: Future + Send>(_a: F, _b: F) { }
+    ///
+    /// let a = future::ready('a');
+    /// let b = future::pending();
+    ///
+    /// select(a.boxed(), b.boxed());
+    /// # })
+    /// ```
+    fn boxed<'a>(self) -> BoxFuture<'a, Self::Output>
+    where
+        Self: Sized + Send + 'a,
+    {
+        Box::pin(self)
+    }
+
+    /// Wrap the future in a Box which can't be sent to threads, pinning it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// async fn select_no_send<F: Future>(_a: F, _b: F) { }
+    ///
+    /// let a = future::ready('a');
+    /// let b = future::pending();
+    ///
+    /// select_no_send(a.boxed_local(), b.boxed_local());
+    /// # })
+    /// ```
+    fn boxed_local<'a>(self) -> LocalBoxFuture<'a, Self::Output>
+    where
+        Self: Sized + 'a,
+    {
+        Box::pin(self)
     }
 }
