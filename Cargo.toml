@@ -1,7 +1,10 @@
 [package]
 name = "futures-lite"
 version = "0.1.5"
-authors = ["Stjepan Glavina <stjepang@gmail.com>"]
+authors = [
+  "Stjepan Glavina <stjepang@gmail.com>",
+  "Contributors to futures-rs",
+]
 edition = "2018"
 description = "A lightweight async prelude"
 license = "Apache-2.0 OR MIT"
