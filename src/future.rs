@@ -450,3 +450,61 @@ where
         Poll::Pending
     }
 }
+
+impl<T: ?Sized> FutureExt for T where T: Future {}
+
+/// An owned dynamically typed [`Future`] for use in cases where you can't
+/// statically type your result or need to add some indirection.
+pub type Boxed<T> = Pin<std::boxed::Box<dyn Future<Output = T> + Send>>;
+
+/// `BoxFuture`, but without the `Send` requirement.
+pub type BoxedLocal<T> = Pin<std::boxed::Box<dyn Future<Output = T>>>;
+
+/// Extension trait for [`Future`].
+pub trait FutureExt: Future {
+    /// Wrap the future in a Box, pinning it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// async fn select<F: Future + Send>(_a: F, _b: F) { }
+    ///
+    /// let a = future::ready('a');
+    /// let b = future::pending();
+    ///
+    /// select(a.boxed(), b.boxed());
+    /// # })
+    /// ```
+    fn boxed(self) -> Boxed<Self::Output>
+    where
+        Self: Sized + Send + 'static,
+    {
+        Box::pin(self)
+    }
+
+    /// Wrap the future in a Box which can't be sent to threads, pinning it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// async fn select_no_send<F: Future>(_a: F, _b: F) { }
+    ///
+    /// let a = future::ready('a');
+    /// let b = future::pending();
+    ///
+    /// select_no_send(a.boxed_local(), b.boxed_local());
+    /// # })
+    /// ```
+    fn boxed_local(self) -> BoxedLocal<Self::Output>
+    where
+        Self: Sized + 'static,
+    {
+        Box::pin(self)
+    }
+}

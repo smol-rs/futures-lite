@@ -630,9 +630,62 @@ pub trait StreamExt: Stream {
             acc: Some(init),
         }
     }
+
+    /// Wrap the stream in a Box, pinning it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// fn select<F: Stream + Send>(_a: F, _b: F) {}
+    ///
+    /// let mut a = stream::once(1);
+    /// let mut b = stream::empty();
+    ///
+    /// select(a.boxed(), b.boxed());
+    ///
+    /// # })
+    fn boxed(self) -> Boxed<Self::Item>
+    where
+        Self: Sized + Send + 'static,
+    {
+        Box::pin(self)
+    }
+
+    /// Wrap the stream in a Box which can't be sent to threads, pinning it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # blocking::block_on(async {
+    /// fn select_no_send<F: Stream>(_a: F, _b: F) {}
+    ///
+    /// let mut a = stream::once(1);
+    /// let mut b = stream::empty();
+    ///
+    /// select_no_send(a.boxed_local(), b.boxed_local());
+    ///
+    /// # })
+    fn boxed_local(self) -> BoxedLocal<Self::Item>
+    where
+        Self: Sized + 'static,
+    {
+        Box::pin(self)
+    }
 }
 
 impl<T: ?Sized> StreamExt for T where T: Stream {}
+
+/// An owned dynamically typed [`Stream`] for use in cases where you can't
+/// statically type your result or need to add some indirection.
+pub type Boxed<T> = Pin<std::boxed::Box<dyn Stream<Item = T> + Send>>;
+
+/// `BoxStream`, but without the `Send` requirement.
+pub type BoxedLocal<T> = Pin<std::boxed::Box<dyn Stream<Item = T>>>;
 
 /// Future for the [`StreamExt::next()`] method.
 #[derive(Debug)]
