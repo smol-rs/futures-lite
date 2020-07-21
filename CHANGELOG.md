@@ -1,3 +1,7 @@
+# Version 0.1.7
+
+- Add blocking APIs (`block_on()` and `BlockOn`).
+
 # Version 0.1.6
 
 - Add `boxed()`, `boxed_local()`, `Boxed`, and `BoxedLocal`.
