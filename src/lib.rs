@@ -20,7 +20,6 @@
 //! }
 //! ```
 
-#![deny(unsafe_code)]
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
 
 #[doc(no_inline)]
@@ -96,7 +95,7 @@ macro_rules! pin {
     ($($x:ident),* $(,)?) => {
         $(
             let mut $x = $x;
-            #[allow(unsafe_code, unused_mut)]
+            #[allow(unused_mut)]
             let mut $x = unsafe {
                 std::pin::Pin::new_unchecked(&mut $x)
             };
