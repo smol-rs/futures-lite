@@ -1,3 +1,7 @@
+# Version 0.1.8
+
+- Fix lints about unsafe code.
+
 # Version 0.1.7
 
 - Add blocking APIs (`block_on()` and `BlockOn`).
