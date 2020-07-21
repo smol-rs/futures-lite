@@ -676,6 +676,16 @@ pub trait StreamExt: Stream {
     {
         Box::pin(self)
     }
+
+    /// Takes a closure and creates a stream that calls that closure on every
+    /// element of this stream.
+    fn map<B, F>(self, f: F) -> Map<Self, F>
+    where
+        Self: Sized,
+        F: FnMut(Self::Item) -> B,
+    {
+        Map::new(self, f)
+    }
 }
 
 impl<T: ?Sized> StreamExt for T where T: Stream {}
@@ -855,6 +865,39 @@ where
                 None => return Poll::Ready(Ok(self.acc.take().unwrap())),
             }
         }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::map()`] method.
+    #[derive(Debug)]
+    pub struct Map<S, F> {
+        #[pin]
+        stream: S,
+        f: F,
+    }
+}
+
+impl<S, F> Map<S, F> {
+    pub(crate) fn new(stream: S, f: F) -> Self {
+        Self {
+            stream,
+            f,
+        }
+    }
+}
+
+impl<S, F, B> Stream for Map<S, F>
+where
+    S: Stream,
+    F: FnMut(S::Item) -> B,
+{
+    type Item = B;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        let next = futures_core::ready!(this.stream.poll_next(cx));
+        Poll::Ready(next.map(this.f))
     }
 }
 
