@@ -5,7 +5,7 @@
 //! ```
 //! use futures_lite::*;
 //!
-//! # blocking::block_on(async {
+//! # future::block_on(async {
 //! for step in 0..3 {
 //!     println!("step {}", step);
 //!
@@ -18,14 +18,83 @@
 // TODO: race(), race!, try_race(), try_race! (randomized for fairness)
 // TODO: join!, try_join!
 
+use std::cell::RefCell;
 use std::fmt;
 #[doc(no_inline)]
 pub use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, Waker};
 
+use parking::Parker;
 use pin_project_lite::pin_project;
+use waker_fn::waker_fn;
+
+use crate::pin;
+
+/// Blocks the current thread on a future.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// let val = future::block_on(async {
+///     1 + 2
+/// });
+///
+/// assert_eq!(val, 3);
+/// ```
+pub fn block_on<T>(future: impl Future<Output = T>) -> T {
+    // Pin the future on the stack.
+    pin!(future);
+
+    // Creates a parker and an associated waker that unparks it.
+    fn parker_and_waker() -> (Parker, Waker) {
+        let parker = Parker::new();
+        let unparker = parker.unparker();
+        let waker = waker_fn(move || unparker.unpark());
+        (parker, waker)
+    }
+
+    thread_local! {
+        // Cached parker and waker for efficiency.
+        static CACHE: RefCell<(Parker, Waker)> = RefCell::new(parker_and_waker());
+    }
+
+    CACHE.with(|cache| {
+        // Try grabbing the cached parker and waker.
+        match cache.try_borrow_mut() {
+            Ok(cache) => {
+                // Use the cached parker and waker.
+                let (parker, waker) = &*cache;
+                let cx = &mut Context::from_waker(&waker);
+
+                // Keep polling until the future is ready.
+                loop {
+                    match future.as_mut().poll(cx) {
+                        Poll::Ready(output) => return output,
+                        Poll::Pending => parker.park(),
+                    }
+                }
+            }
+            Err(_) => {
+                // Looks like this is a recursive `block_on()` call.
+                // Create a fresh parker and waker.
+                let (parker, waker) = parker_and_waker();
+                let cx = &mut Context::from_waker(&waker);
+
+                // Keep polling until the future is ready.
+                loop {
+                    match future.as_mut().poll(cx) {
+                        Poll::Ready(output) => return output,
+                        Poll::Pending => parker.park(),
+                    }
+                }
+            }
+        }
+    })
+}
 
 /// Creates a future that is always pending.
 ///
@@ -34,7 +103,7 @@ use pin_project_lite::pin_project;
 /// ```no_run
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// future::pending::<()>().await;
 /// unreachable!();
 /// # })
@@ -73,7 +142,7 @@ impl<T> Future for Pending<T> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// assert_eq!(future::poll_once(future::pending::<()>()).await, None);
 /// assert_eq!(future::poll_once(future::ready(42)).await, Some(42));
 /// # })
@@ -122,7 +191,7 @@ where
 /// use futures_lite::*;
 /// use std::task::{Context, Poll};
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// fn f(_: &mut Context<'_>) -> Poll<i32> {
 ///     Poll::Ready(7)
 /// }
@@ -169,7 +238,7 @@ where
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// assert_eq!(future::ready(7).await, 7);
 /// # })
 /// ```
@@ -202,7 +271,7 @@ impl<T> Future for Ready<T> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// future::yield_now().await;
 /// # })
 /// ```
@@ -235,7 +304,7 @@ impl Future for YieldNow {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let a = async { 1 };
 /// let b = async { 2 };
 ///
@@ -309,7 +378,7 @@ where
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let a = async { Ok::<i32, i32>(1) };
 /// let b = async { Err::<i32, i32>(2) };
 ///
@@ -396,7 +465,7 @@ where
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let a = future::pending();
 /// let b = future::ready(7);
 ///
@@ -486,7 +555,7 @@ pub trait FutureExt: Future {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let a = future::ready('a');
     /// let b = future::pending();
     ///
@@ -509,7 +578,7 @@ pub trait FutureExt: Future {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let a = future::ready('a');
     /// let b = future::pending();
     ///

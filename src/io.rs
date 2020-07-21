@@ -2,25 +2,16 @@
 //!
 //! # Examples
 //!
-//! Read a file line by line:
-//!
-//! ```no_run
-//! use blocking::{block_on, Unblock};
+//! ```
 //! use futures_lite::*;
-//! use std::fs::File;
 //!
-//! fn main() -> io::Result<()> {
-//!     block_on(async {
-//!         let file = Unblock::new(File::open("a.txt")?);
-//!         let reader = io::BufReader::new(file);
-//!         let mut lines = reader.lines();
+//! future::block_on(async {
+//! let input: &[u8] = b"hello";
+//! let mut reader = io::BufReader::new(input);
 //!
-//!         while let Some(line) = lines.next().await {
-//!             println!("{}", line?);
-//!         }
-//!         Ok(())
-//!     })
-//! }
+//! let mut contents = String::new();
+//! reader.read_to_string(&mut contents).await?;
+//! # std::io::Result::Ok(()) });
 //! ```
 
 // TODO: Async version of std::io::LineWriter
@@ -41,6 +32,7 @@ use futures_core::stream::Stream;
 pub use futures_io::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncWrite};
 use pin_project_lite::pin_project;
 
+use crate::future;
 use crate::ready;
 
 const DEFAULT_BUF_SIZE: usize = 8 * 1024;
@@ -55,12 +47,14 @@ const DEFAULT_BUF_SIZE: usize = 8 * 1024;
 /// # Examples
 ///
 /// ```
-/// use blocking::Unblock;
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
-/// let reader: &[u8] = b"hello";
-/// let writer = Unblock::new(std::io::stdout());
+/// # future::block_on(async {
+/// let input: &[u8] = b"hello";
+/// let reader = io::BufReader::new(input);
+///
+/// let mut output = Vec::new();
+/// let writer = io::BufWriter::new(&mut output);
 ///
 /// io::copy(reader, writer).await?;
 /// # std::io::Result::Ok(()) });
@@ -114,6 +108,129 @@ where
     future.await
 }
 
+/// Blocking interface for async I/O.
+///
+/// Sometimes async I/O needs to be used in a blocking manner. If calling [`future::block_on()`]
+/// manually all the time becomes too tedious, use this type for more convenient blocking on async
+/// I/O operations.
+///
+/// This type implements traits [`Read`][`std::io::Read`], [`Write`][`std::io::Write`], or
+/// [`Seek`][`std::io::Seek`] if the inner type implements [`AsyncRead`], [`AsyncWrite`], or
+/// [`AsyncSeek`], respectively.
+///
+/// If writing data through the [`Write`][`std::io::Write`] trait, make sure to flush before
+/// dropping the [`BlockOn`] handle or some buffered data might get lost.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+/// use std::io::Read;
+///
+/// let reader: &[u8] = b"hello";
+/// pin!(reader);
+///
+/// let mut blocking_reader = io::BlockOn::new(reader);
+/// let mut contents = String::new();
+///
+/// // This line blocks - note that there is no await:
+/// blocking_reader.read_to_string(&mut contents)?;
+/// # io::Result::Ok(())
+/// ```
+#[derive(Debug)]
+pub struct BlockOn<T>(T);
+
+impl<T> BlockOn<T> {
+    /// Wraps an async I/O handle into a blocking interface.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// pin!(reader);
+    ///
+    /// let blocking_reader = io::BlockOn::new(reader);
+    /// ```
+    pub fn new(io: T) -> BlockOn<T> {
+        BlockOn(io)
+    }
+
+    /// Gets a reference to the async I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// pin!(reader);
+    ///
+    /// let blocking_reader = io::BlockOn::new(reader);
+    /// let inner = blocking_reader.get_ref();
+    /// ```
+    pub fn get_ref(&self) -> &T {
+        &self.0
+    }
+
+    /// Gets a mutable reference to the async I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// pin!(reader);
+    ///
+    /// let mut blocking_reader = io::BlockOn::new(reader);
+    /// let inner = blocking_reader.get_mut();
+    /// ```
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+
+    /// Extracts the inner async I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// pin!(reader);
+    ///
+    /// let blocking_reader = io::BlockOn::new(reader);
+    /// let inner = blocking_reader.into_inner();
+    /// ```
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T: AsyncRead + Unpin> std::io::Read for BlockOn<T> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        future::block_on(self.0.read(buf))
+    }
+}
+
+impl<T: AsyncWrite + Unpin> std::io::Write for BlockOn<T> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        future::block_on(self.0.write(buf))
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        future::block_on(self.0.flush())
+    }
+}
+
+impl<T: AsyncSeek + Unpin> std::io::Seek for BlockOn<T> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        future::block_on(self.0.seek(pos))
+    }
+}
+
 pin_project! {
     /// Adds buffering to a reader.
     ///
@@ -131,14 +248,12 @@ pin_project! {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let mut file = Unblock::new(File::open("a.txt")?);
-    /// let mut reader = io::BufReader::new(file);
+    /// # future::block_on(async {
+    /// let input: &[u8] = b"hello";
+    /// let mut reader = io::BufReader::new(input);
     ///
     /// let mut line = String::new();
     /// reader.read_line(&mut line).await?;
@@ -163,8 +278,8 @@ impl<R: AsyncRead> BufReader<R> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let bytes: &[u8] = b"hello";
-    /// let reader = io::BufReader::new(bytes);
+    /// let input: &[u8] = b"hello";
+    /// let reader = io::BufReader::new(input);
     /// ```
     pub fn new(inner: R) -> BufReader<R> {
         BufReader::with_capacity(DEFAULT_BUF_SIZE, inner)
@@ -177,8 +292,8 @@ impl<R: AsyncRead> BufReader<R> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let bytes: &[u8] = b"hello";
-    /// let reader = io::BufReader::with_capacity(1024, bytes);
+    /// let input: &[u8] = b"hello";
+    /// let reader = io::BufReader::with_capacity(1024, input);
     /// ```
     pub fn with_capacity(capacity: usize, inner: R) -> BufReader<R> {
         BufReader {
@@ -200,8 +315,8 @@ impl<R> BufReader<R> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let bytes: &[u8] = b"hello";
-    /// let reader = io::BufReader::new(bytes);
+    /// let input: &[u8] = b"hello";
+    /// let reader = io::BufReader::new(input);
     ///
     /// let r = reader.get_ref();
     /// ```
@@ -218,8 +333,8 @@ impl<R> BufReader<R> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let bytes: &[u8] = b"hello";
-    /// let mut reader = io::BufReader::new(bytes);
+    /// let input: &[u8] = b"hello";
+    /// let mut reader = io::BufReader::new(input);
     ///
     /// let r = reader.get_mut();
     /// ```
@@ -243,8 +358,8 @@ impl<R> BufReader<R> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let bytes: &[u8] = b"hello";
-    /// let reader = io::BufReader::new(bytes);
+    /// let input: &[u8] = b"hello";
+    /// let reader = io::BufReader::new(input);
     ///
     /// // The internal buffer is empty until the first read request.
     /// assert_eq!(reader.buffer(), &[]);
@@ -262,10 +377,10 @@ impl<R> BufReader<R> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let bytes: &[u8] = b"hello";
-    /// let reader = io::BufReader::new(bytes);
+    /// let input: &[u8] = b"hello";
+    /// let reader = io::BufReader::new(input);
     ///
-    /// assert_eq!(reader.into_inner(), bytes);
+    /// assert_eq!(reader.into_inner(), input);
     /// ```
     pub fn into_inner(self) -> R {
         self.inner
@@ -426,14 +541,12 @@ pin_project! {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let file = Unblock::new(File::create("a.txt")?);
-    /// let mut writer = io::BufWriter::new(file);
+    /// # future::block_on(async {
+    /// let mut output = Vec::new();
+    /// let mut writer = io::BufWriter::new(&mut output);
     ///
     /// writer.write_all(b"hello").await?;
     /// writer.flush().await?;
@@ -457,8 +570,8 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let mut bytes = Vec::new();
-    /// let writer = io::BufWriter::new(&mut bytes);
+    /// let mut output = Vec::new();
+    /// let writer = io::BufWriter::new(&mut output);
     /// ```
     pub fn new(inner: W) -> BufWriter<W> {
         BufWriter::with_capacity(DEFAULT_BUF_SIZE, inner)
@@ -471,8 +584,8 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let mut bytes = Vec::new();
-    /// let writer = io::BufWriter::with_capacity(100, &mut bytes);
+    /// let mut output = Vec::new();
+    /// let writer = io::BufWriter::with_capacity(100, &mut output);
     /// ```
     pub fn with_capacity(capacity: usize, inner: W) -> BufWriter<W> {
         BufWriter {
@@ -489,8 +602,8 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let mut bytes = Vec::new();
-    /// let writer = io::BufWriter::new(&mut bytes);
+    /// let mut output = Vec::new();
+    /// let writer = io::BufWriter::new(&mut output);
     ///
     /// let r = writer.get_ref();
     /// ```
@@ -507,8 +620,8 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let mut bytes = Vec::new();
-    /// let mut writer = io::BufWriter::new(&mut bytes);
+    /// let mut output = Vec::new();
+    /// let mut writer = io::BufWriter::new(&mut output);
     ///
     /// let r = writer.get_mut();
     /// ```
@@ -533,9 +646,9 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
-    /// let mut bytes = vec![1, 2, 3];
-    /// let mut writer = io::BufWriter::new(&mut bytes);
+    /// # future::block_on(async {
+    /// let mut output = vec![1, 2, 3];
+    /// let mut writer = io::BufWriter::new(&mut output);
     ///
     /// writer.write_all(&[4]).await?;
     /// writer.flush().await?;
@@ -553,8 +666,8 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// let mut bytes = Vec::new();
-    /// let writer = io::BufWriter::new(&mut bytes);
+    /// let mut output = Vec::new();
+    /// let writer = io::BufWriter::new(&mut output);
     ///
     /// // The internal buffer is empty until the first write request.
     /// assert_eq!(writer.buffer(), &[]);
@@ -658,7 +771,7 @@ impl<W: AsyncWrite + AsyncSeek> AsyncSeek for BufWriter<W> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut bytes = b"hello".to_vec();
 /// let mut cursor = io::Cursor::new(&mut bytes);
 ///
@@ -752,7 +865,7 @@ impl<T> Cursor<T> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut cursor = io::Cursor::new(b"hello");
     /// assert_eq!(cursor.position(), 0);
     ///
@@ -898,7 +1011,7 @@ impl AsyncWrite for Cursor<Vec<u8>> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut reader = io::empty();
 ///
 /// let mut contents = Vec::new();
@@ -945,7 +1058,7 @@ impl AsyncBufRead for Empty {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut reader = io::repeat(b'a');
 ///
 /// let mut contents = vec![0; 5];
@@ -980,7 +1093,7 @@ impl AsyncRead for Repeat {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut writer = io::sink();
 /// writer.write_all(b"hello").await?;
 /// # std::io::Result::Ok(()) });
@@ -1023,14 +1136,12 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let file = Unblock::new(File::open("a.txt")?);
-    /// let mut reader = io::BufReader::new(file);
+    /// # future::block_on(async {
+    /// let input: &[u8] = b"hello";
+    /// let mut reader = io::BufReader::new(input);
     ///
     /// let mut buf = Vec::new();
     /// let n = reader.read_until(b'\n', &mut buf).await?;
@@ -1058,14 +1169,12 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let file = Unblock::new(File::open("a.txt")?);
-    /// let mut reader = io::BufReader::new(file);
+    /// # future::block_on(async {
+    /// let input: &[u8] = b"hello";
+    /// let mut reader = io::BufReader::new(input);
     ///
     /// let mut line = String::new();
     /// let n = reader.read_line(&mut line).await?;
@@ -1092,14 +1201,12 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let file = Unblock::new(File::open("a.txt")?);
-    /// let reader = io::BufReader::new(file);
+    /// # future::block_on(async {
+    /// let input: &[u8] = b"hello\nworld\n";
+    /// let mut reader = io::BufReader::new(input);
     /// let mut lines = reader.lines();
     ///
     /// let mut line = String::new();
@@ -1131,7 +1238,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let cursor = io::Cursor::new(b"lorem-ipsum-dolor");
     /// let items: Vec<Vec<u8>> = cursor.split(b'-').try_collect().await?;
     ///
@@ -1352,16 +1459,15 @@ pub trait AsyncReadExt: AsyncRead {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let mut file = Unblock::new(File::open("a.txt")?);
+    /// # future::block_on(async {
+    /// let input: &[u8] = b"hello";
+    /// let mut reader = io::BufReader::new(input);
     ///
     /// let mut buf = vec![0; 1024];
-    /// let n = file.read(&mut buf).await?;
+    /// let n = reader.read(&mut buf).await?;
     /// # std::io::Result::Ok(()) });
     /// ```
     fn read<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadFuture<'a, Self>
@@ -1395,7 +1501,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut reader = io::Cursor::new(vec![1, 2, 3]);
     /// let mut contents = Vec::new();
     ///
@@ -1425,7 +1531,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut reader = io::Cursor::new(&b"hello");
     /// let mut contents = String::new();
     ///
@@ -1455,7 +1561,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut reader = io::Cursor::new(&b"hello");
     /// let mut contents = vec![0; 3];
     ///
@@ -1480,7 +1586,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut reader = io::Cursor::new(&b"hello");
     /// let mut contents = String::new();
     ///
@@ -1503,7 +1609,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let reader = io::Cursor::new(&b"hello");
     /// let mut bytes = reader.bytes();
     ///
@@ -1529,7 +1635,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let r1 = io::Cursor::new(&b"hello");
     /// let r2 = io::Cursor::new(&b"world");
     /// let mut reader = r1.chain(r2);
@@ -2066,7 +2172,7 @@ pub trait AsyncSeekExt: AsyncSeek {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut cursor = io::Cursor::new("hello");
     ///
     /// // Move the cursor to the end.
@@ -2117,14 +2223,14 @@ pub trait AsyncWriteExt: AsyncWrite {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let mut file = Unblock::new(File::create("a.txt")?);
-    /// let n = file.write(b"hello").await?;
+    /// # future::block_on(async {
+    /// let mut output = Vec::new();
+    /// let mut writer = io::BufWriter::new(&mut output);
+    ///
+    /// let n = writer.write(b"hello").await?;
     /// # std::io::Result::Ok(()) });
     /// ```
     fn write<'a>(&'a mut self, buf: &'a [u8]) -> WriteFuture<'a, Self>
@@ -2154,14 +2260,14 @@ pub trait AsyncWriteExt: AsyncWrite {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let mut file = Unblock::new(File::create("a.txt")?);
-    /// let n = file.write_all(b"hello").await?;
+    /// # future::block_on(async {
+    /// let mut output = Vec::new();
+    /// let mut writer = io::BufWriter::new(&mut output);
+    ///
+    /// let n = writer.write_all(b"hello").await?;
     /// # std::io::Result::Ok(()) });
     /// ```
     fn write_all<'a>(&'a mut self, buf: &'a [u8]) -> WriteAllFuture<'a, Self>
@@ -2175,15 +2281,15 @@ pub trait AsyncWriteExt: AsyncWrite {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use blocking::Unblock;
+    /// ```
     /// use futures_lite::*;
-    /// use std::fs::File;
     ///
-    /// # blocking::block_on(async {
-    /// let mut file = Unblock::new(File::create("a.txt")?);
-    /// file.write_all(b"hello").await?;
-    /// file.flush().await?;
+    /// # future::block_on(async {
+    /// let mut output = Vec::new();
+    /// let mut writer = io::BufWriter::new(&mut output);
+    ///
+    /// writer.write_all(b"hello").await?;
+    /// writer.flush().await?;
     /// # std::io::Result::Ok(()) });
     /// ```
     fn flush(&mut self) -> FlushFuture<'_, Self>
@@ -2198,12 +2304,13 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// # Examples
     ///
     /// ```
-    /// use async_net::TcpStream;
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
-    /// let mut stream = TcpStream::connect("example.com:80").await?;
-    /// stream.close().await?;
+    /// # future::block_on(async {
+    /// let mut output = Vec::new();
+    /// let mut writer = io::BufWriter::new(&mut output);
+    ///
+    /// writer.close().await?;
     /// # std::io::Result::Ok(()) });
     /// ```
     fn close(&mut self) -> CloseFuture<'_, Self>

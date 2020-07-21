@@ -2,10 +2,10 @@
 //!
 //! # Examples
 //!
-//! ```no_run
+//! ```
 //! use futures_lite::*;
 //!
-//! # blocking::block_on(async {
+//! # future::block_on(async {
 //! let mut s = stream::iter(vec![1, 2, 3]);
 //!
 //! assert_eq!(s.next().await, Some(1));
@@ -30,7 +30,38 @@ use std::task::{Context, Poll};
 pub use futures_core::stream::Stream;
 use pin_project_lite::pin_project;
 
+use crate::future;
 use crate::ready;
+
+/// Converts a stream into a blocking iterator.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// let stream = stream::once(7);
+/// pin!(stream);
+///
+/// let mut iter = stream::block_on(stream);
+/// assert_eq!(iter.next(), Some(7));
+/// assert_eq!(iter.next(), None);
+/// ```
+pub fn block_on<S: Stream + Unpin>(stream: S) -> BlockOn<S> {
+    BlockOn(stream)
+}
+
+/// Iterator for the [`block_on()`] function.
+#[derive(Debug)]
+pub struct BlockOn<T>(T);
+
+impl<T: Stream + Unpin> Iterator for BlockOn<T> {
+    type Item = T::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        future::block_on(self.0.next())
+    }
+}
 
 /// Creates an empty stream.
 ///
@@ -39,7 +70,7 @@ use crate::ready;
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut s = stream::empty::<i32>();
 /// assert_eq!(s.next().await, None);
 /// # })
@@ -73,7 +104,7 @@ impl<T> Stream for Empty<T> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut s = stream::iter(vec![1, 2]);
 ///
 /// assert_eq!(s.next().await, Some(1));
@@ -114,7 +145,7 @@ impl<I: Iterator> Stream for Iter<I> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut s = stream::once(7);
 ///
 /// assert_eq!(s.next().await, Some(7));
@@ -156,7 +187,7 @@ impl<T> Stream for Once<T> {
 /// ```no_run
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut s = stream::pending::<i32>();
 /// s.next().await;
 /// unreachable!();
@@ -192,7 +223,7 @@ impl<T> Stream for Pending<T> {
 /// use futures_lite::*;
 /// use std::task::{Context, Poll};
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// fn f(_: &mut Context<'_>) -> Poll<Option<i32>> {
 ///     Poll::Ready(Some(7))
 /// }
@@ -238,7 +269,7 @@ where
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut s = stream::repeat(7);
 ///
 /// assert_eq!(s.next().await, Some(7));
@@ -272,7 +303,7 @@ impl<T: Clone> Stream for Repeat<T> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let mut s = stream::repeat(7);
 ///
 /// assert_eq!(s.next().await, Some(7));
@@ -313,7 +344,7 @@ where
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let s = stream::unfold(0, |mut n| async move {
 ///     if n < 2 {
 ///         let m = n + 1;
@@ -400,7 +431,7 @@ where
 /// ```
 /// use futures_lite::*;
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let s = stream::try_unfold(0, |mut n| async move {
 ///     if n < 2 {
 ///         let m = n + 1;
@@ -497,7 +528,7 @@ pub trait StreamExt: Stream {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut s = stream::iter(1..=3);
     ///
     /// assert_eq!(s.next().await, Some(1));
@@ -520,7 +551,7 @@ pub trait StreamExt: Stream {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut s = stream::iter(1..=3);
     ///
     /// let items: Vec<_> = s.collect().await;
@@ -542,7 +573,7 @@ pub trait StreamExt: Stream {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let s = stream::iter(vec![Ok(1), Err(2), Ok(3)]);
     /// let res: Result<Vec<i32>, i32> = s.try_collect().await;
     /// assert_eq!(res, Err(2));
@@ -573,7 +604,7 @@ pub trait StreamExt: Stream {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let s = stream::iter(vec![1, 2, 3]);
     /// let sum = s.fold(0, |acc, x| acc + x).await;
     ///
@@ -603,7 +634,7 @@ pub trait StreamExt: Stream {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let mut s = stream::iter(vec![Ok(1), Ok(2), Ok(3)]);
     ///
     /// let sum = s.try_fold(0, |acc, v| {
@@ -638,7 +669,7 @@ pub trait StreamExt: Stream {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let a = stream::once(1);
     /// let b = stream::empty();
     ///
@@ -661,7 +692,7 @@ pub trait StreamExt: Stream {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # blocking::block_on(async {
+    /// # future::block_on(async {
     /// let a = stream::once(1);
     /// let b = stream::empty();
     ///

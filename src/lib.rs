@@ -10,27 +10,17 @@
 //!
 //! # Examples
 //!
-//! Connect to a HTTP website, make a GET request, and pipe the response to the standard output:
-//!
 //! ```no_run
-//! use async_net::TcpStream;
-//! use blocking::{block_on, Unblock};
 //! use futures_lite::*;
 //!
-//! fn main() -> io::Result<()> {
-//!     block_on(async {
-//!         let mut stream = TcpStream::connect("example.com:80").await?;
-//!         let req = b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n";
-//!         stream.write_all(req).await?;
-//!
-//!         let mut stdout = Unblock::new(std::io::stdout());
-//!         io::copy(&stream, &mut stdout).await?;
-//!         Ok(())
+//! fn main() {
+//!     future::block_on(async {
+//!         println!("Hello world!");
 //!     })
 //! }
 //! ```
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
 
 #[doc(no_inline)]
@@ -96,7 +86,7 @@ macro_rules! ready {
 ///     future::poll_fn(|cx| dbg!(f.as_mut().poll(cx))).await
 /// }
 ///
-/// # blocking::block_on(async {
+/// # future::block_on(async {
 /// let f = async { 1 + 2 };
 /// inspect(f).await;
 /// # })
@@ -106,7 +96,7 @@ macro_rules! pin {
     ($($x:ident),* $(,)?) => {
         $(
             let mut $x = $x;
-            #[allow(unused_mut)]
+            #[allow(unsafe_code, unused_mut)]
             let mut $x = unsafe {
                 std::pin::Pin::new_unchecked(&mut $x)
             };
