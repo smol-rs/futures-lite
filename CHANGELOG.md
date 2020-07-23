@@ -1,3 +1,8 @@
+# Version 0.1.9
+
+- Add `FutureExt::or()`.
+- Put `#[must_use]` on all futures and streams.
+
 # Version 0.1.8
 
 - Fix lints about unsafe code.
