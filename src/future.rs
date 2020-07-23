@@ -115,6 +115,7 @@ pub fn pending<T>() -> Pending<T> {
 }
 
 /// Future for the [`pending()`] function.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Pending<T> {
     _marker: PhantomData<T>,
 }
@@ -156,6 +157,7 @@ where
 
 pin_project! {
     /// Future for the [`poll_once()`] function.
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct PollOnce<F> {
         #[pin]
         f: F,
@@ -208,6 +210,7 @@ where
 
 pin_project! {
     /// Future for the [`poll_fn()`] function.
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct PollFn<F> {
         f: F,
     }
@@ -248,6 +251,7 @@ pub fn ready<T>(val: T) -> Ready<T> {
 
 /// Future for the [`ready()`] function.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Ready<T>(Option<T>);
 
 impl<T> Unpin for Ready<T> {}
@@ -281,6 +285,7 @@ pub fn yield_now() -> YieldNow {
 
 /// Future for the [`yield_now()`] function.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct YieldNow(bool);
 
 impl Future for YieldNow {
@@ -327,6 +332,7 @@ where
 pin_project! {
     /// Future for the [`join()`] function.
     #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct Join<Fut1, Fut2>
     where
         Fut1: Future,
@@ -401,6 +407,7 @@ where
 pin_project! {
     /// Future for the [`try_join()`] function.
     #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct TryJoin<Fut1, Fut2>
     where
         Fut1: Future,
@@ -455,21 +462,25 @@ where
     }
 }
 
-/// Returns the result of the future that completes first.
+/// Returns the result of the future that completes first, with no preference if both are ready.
 ///
 /// Each time [`Race`] is polled, the two inner futures are polled in random order. Therefore, no
 /// future takes precedence over the other if both can complete at the same time.
 ///
+/// If you have prec for one of the futures, use the [`or()`][`FutureExt::or()`] method
+/// instead.
+///
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future::{pending, race, ready};
 ///
-/// # future::block_on(async {
-/// let a = future::pending();
-/// let b = future::ready(7);
+/// # futures_lite::future::block_on(async {
+/// assert_eq!(race(ready(1), pending()).await, 1);
+/// assert_eq!(race(pending(), ready(2)).await, 2);
 ///
-/// assert_eq!(future::race(a, b).await, 7);
+/// // One of the two futures is randomly chosen as the winner.
+/// let res = race(ready(1), ready(2)).await;
 /// # })
 /// ```
 pub fn race<T, A, B>(future1: A, future2: B) -> Race<A, B>
@@ -483,6 +494,7 @@ where
 pin_project! {
     /// Future for the [`race()`] function.
     #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct Race<A, B> {
         #[pin]
         future1: A,
@@ -509,10 +521,10 @@ where
                 return Poll::Ready(t);
             }
         } else {
-            if let Poll::Ready(t) = this.future1.poll(cx) {
+            if let Poll::Ready(t) = this.future2.poll(cx) {
                 return Poll::Ready(t);
             }
-            if let Poll::Ready(t) = this.future2.poll(cx) {
+            if let Poll::Ready(t) = this.future1.poll(cx) {
                 return Poll::Ready(t);
             }
         }
@@ -548,6 +560,36 @@ pub type BoxedLocal<T> = Pin<Box<dyn Future<Output = T>>>;
 
 /// Extension trait for [`Future`].
 pub trait FutureExt: Future {
+    /// Returns the result of `self` or `other` future, preferring `self` if both are ready.
+    ///
+    /// If you need to treat the two futures fairly without a preference for either, use the
+    /// [`race()`] function instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    /// use futures_lite::future::{pending, ready};
+    ///
+    /// # future::block_on(async {
+    /// assert_eq!(ready(1).or(pending()).await, 1);
+    /// assert_eq!(pending().or(ready(2)).await, 2);
+    ///
+    /// // The first future wins.
+    /// assert_eq!(ready(1).or(ready(2)).await, 1);
+    /// # })
+    /// ```
+    fn or<F>(self, other: F) -> Or<Self, F>
+    where
+        Self: Sized,
+        F: Future<Output = Self::Output>,
+    {
+        Or {
+            future1: self,
+            future2: other,
+        }
+    }
+
     /// Boxes the future and changes its type to `dyn Future<Output = T> + Send`.
     ///
     /// # Examples
@@ -596,3 +638,35 @@ pub trait FutureExt: Future {
 }
 
 impl<T: ?Sized> FutureExt for T where T: Future {}
+
+pin_project! {
+    /// Future for the [`or()`][`FutureExt::or()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct Or<A, B> {
+        #[pin]
+        future1: A,
+        #[pin]
+        future2: B,
+    }
+}
+
+impl<T, A, B> Future for Or<A, B>
+where
+    A: Future<Output = T>,
+    B: Future<Output = T>,
+{
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+
+        if let Poll::Ready(t) = this.future1.poll(cx) {
+            return Poll::Ready(t);
+        }
+        if let Poll::Ready(t) = this.future2.poll(cx) {
+            return Poll::Ready(t);
+        }
+        Poll::Pending
+    }
+}

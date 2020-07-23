@@ -83,6 +83,7 @@ pub fn empty<T>() -> Empty<T> {
 
 /// Stream for the [`empty()`] function.
 #[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct Empty<T> {
     _marker: PhantomData<T>,
 }
@@ -120,6 +121,7 @@ pub fn iter<I: IntoIterator>(iter: I) -> Iter<I::IntoIter> {
 
 /// Stream for the [`iter()`] function.
 #[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct Iter<I> {
     iter: I,
 }
@@ -159,6 +161,7 @@ pub fn once<T>(t: T) -> Once<T> {
 pin_project! {
     /// Stream for the [`once()`] function.
     #[derive(Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Once<T> {
         value: Option<T>,
     }
@@ -201,6 +204,7 @@ pub fn pending<T>() -> Pending<T> {
 
 /// Stream for the [`pending()`] function.
 #[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct Pending<T> {
     _marker: PhantomData<T>,
 }
@@ -239,6 +243,7 @@ where
 }
 
 /// Stream for the [`poll_fn()`] function.
+#[must_use = "streams do nothing unless polled"]
 pub struct PollFn<F> {
     f: F,
 }
@@ -282,6 +287,7 @@ pub fn repeat<T: Clone>(item: T) -> Repeat<T> {
 
 /// Stream for the [`repeat()`] function.
 #[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct Repeat<T> {
     item: T,
 }
@@ -319,6 +325,7 @@ where
 
 /// Stream for the [`repeat_with()`] function.
 #[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct RepeatWith<F> {
     f: F,
 }
@@ -372,6 +379,7 @@ where
 
 pin_project! {
     /// Stream for the [`unfold()`] function.
+    #[must_use = "streams do nothing unless polled"]
     pub struct Unfold<T, F, Fut> {
         f: F,
         state: Option<T>,
@@ -459,6 +467,7 @@ where
 
 pin_project! {
     /// Stream for the [`try_unfold()`] function.
+    #[must_use = "streams do nothing unless polled"]
     pub struct TryUnfold<T, F, Fut> {
         f: F,
         state: Option<T>,
@@ -739,6 +748,7 @@ pub type BoxedLocal<T> = Pin<Box<dyn Stream<Item = T>>>;
 
 /// Future for the [`StreamExt::next()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct NextFuture<'a, T: Unpin + ?Sized> {
     stream: &'a mut T,
 }
@@ -756,6 +766,7 @@ impl<T: Stream + Unpin + ?Sized> Future for NextFuture<'_, T> {
 pin_project! {
     /// Future for the [`StreamExt::collect()`] method.
     #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct CollectFuture<St, C> {
         #[pin]
         stream: St,
@@ -788,6 +799,7 @@ where
 pin_project! {
     /// Future for the [`StreamExt::try_collect()`] method.
     #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct TryCollectFuture<St, C> {
         #[pin]
         stream: St,
@@ -816,6 +828,7 @@ where
 pin_project! {
     /// Future for the [`StreamExt::fold()`] method.
     #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct FoldFuture<S, F, B> {
         #[pin]
         stream: S,
@@ -848,6 +861,7 @@ where
 
 /// Future for the [`StreamExt::try_fold()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TryFoldFuture<'a, S, F, B> {
     stream: &'a mut S,
     f: F,

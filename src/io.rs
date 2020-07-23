@@ -17,6 +17,10 @@
 // TODO: Async version of std::io::LineWriter
 // TODO: AssertAsync (a clone of AllowStdIo)
 
+/// Asserts that a type implementing [`std::io`] traits is also an async type.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct AssertAsync<T>(T);
+
 use std::cmp;
 use std::fmt;
 use std::future::Future;
@@ -1264,6 +1268,7 @@ impl<R: AsyncBufRead + ?Sized> AsyncBufReadExt for R {}
 
 /// Future for the [`AsyncBufReadExt::read_until()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadUntilFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     byte: u8,
@@ -1318,6 +1323,7 @@ fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
 
 /// Future for the [`AsyncBufReadExt::read_line()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadLineFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut String,
@@ -1344,6 +1350,7 @@ impl<T: AsyncBufRead + Unpin + ?Sized> Future for ReadLineFuture<'_, T> {
 pin_project! {
     /// Stream for the [`AsyncBufReadExt::lines()`] method.
     #[derive(Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Lines<R> {
         #[pin]
         reader: R,
@@ -1408,6 +1415,7 @@ fn read_line_internal<R: AsyncBufRead + ?Sized>(
 pin_project! {
     /// Stream for the [`AsyncBufReadExt::split()`] method.
     #[derive(Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Split<R> {
         #[pin]
         reader: R,
@@ -1661,6 +1669,7 @@ impl<R: AsyncRead + ?Sized> AsyncReadExt for R {}
 
 /// Future for the [`AsyncReadExt::read()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut [u8],
@@ -1679,6 +1688,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadFuture<'_, T> {
 
 /// Future for the [`AsyncReadExt::read_vectored()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadVectoredFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     bufs: &'a mut [IoSliceMut<'a>],
@@ -1697,6 +1707,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadVectoredFuture<'_, T> {
 
 /// Future for the [`AsyncReadExt::read_to_end()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadToEndFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut Vec<u8>,
@@ -1720,6 +1731,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToEndFuture<'_, T> {
 
 /// Future for the [`AsyncReadExt::read_to_string()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadToStringFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut String,
@@ -1815,6 +1827,7 @@ fn read_to_end_internal<R: AsyncRead + ?Sized>(
 
 /// Future for the [`AsyncReadExt::read_exact()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadExactFuture<'a, T: Unpin + ?Sized> {
     reader: &'a mut T,
     buf: &'a mut [u8],
@@ -2194,6 +2207,7 @@ impl<S: AsyncSeek + ?Sized> AsyncSeekExt for S {}
 
 /// Future for the [`AsyncSeekExt::seek()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SeekFuture<'a, T: Unpin + ?Sized> {
     seeker: &'a mut T,
     pos: SeekFrom,
@@ -2325,6 +2339,7 @@ impl<R: AsyncWrite + ?Sized> AsyncWriteExt for R {}
 
 /// Future for the [`AsyncWriteExt::write()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct WriteFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     buf: &'a [u8],
@@ -2343,6 +2358,7 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteFuture<'_, T> {
 
 /// Future for the [`AsyncWriteExt::write_vectored()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct WriteVectoredFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     bufs: &'a [IoSlice<'a>],
@@ -2361,6 +2377,7 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteVectoredFuture<'_, T> {
 
 /// Future for the [`AsyncWriteExt::write_all()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct WriteAllFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
     buf: &'a [u8],
@@ -2390,6 +2407,7 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteAllFuture<'_, T> {
 
 /// Future for the [`AsyncWriteExt::flush()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct FlushFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
 }
@@ -2406,6 +2424,7 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for FlushFuture<'_, T> {
 
 /// Future for the [`AsyncWriteExt::close()`] method.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct CloseFuture<'a, T: Unpin + ?Sized> {
     writer: &'a mut T,
 }
