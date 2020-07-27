@@ -119,7 +119,7 @@ where
 ///
 /// let reader: &[u8] = b"hello";
 ///
-/// future::block_on(async {
+/// # future::block_on(async {
 /// let mut async_reader = io::AssertAsync::new(reader);
 /// let mut contents = String::new();
 ///
