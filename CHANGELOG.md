@@ -1,3 +1,7 @@
+# Version 0.1.10
+
+- Add `AssertAsync`.
+
 # Version 0.1.9
 
 - Add `FutureExt::or()`.
