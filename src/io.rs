@@ -15,11 +15,6 @@
 //! ```
 
 // TODO: Async version of std::io::LineWriter
-// TODO: AssertAsync (a clone of AllowStdIo)
-
-/// Asserts that a type implementing [`std::io`] traits is also an async type.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct AssertAsync<T>(T);
 
 use std::cmp;
 use std::fmt;
@@ -112,7 +107,181 @@ where
     future.await
 }
 
-/// Blocking interface for async I/O.
+/// Asserts that a type implementing [`std::io`] traits can be used as an async type.
+///
+/// The underlying I/O handle should never block nor return the [`ErrorKind::WouldBlock`] error.
+/// This is usually the case for in-memory buffered I/O.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// let reader: &[u8] = b"hello";
+///
+/// future::block_on(async {
+/// let mut async_reader = io::AssertAsync::new(reader);
+/// let mut contents = String::new();
+///
+/// // This line works in async manner - note that there is await:
+/// async_reader.read_to_string(&mut contents).await?;
+/// # std::io::Result::Ok(()) });
+/// ```
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct AssertAsync<T>(T);
+
+impl<T> Unpin for AssertAsync<T> {}
+
+impl<T> AssertAsync<T> {
+    /// Wraps an I/O handle implementing [`std::io`] traits.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader: &[u8] = b"hello";
+    ///
+    /// let async_reader = io::AssertAsync::new(reader);
+    /// ```
+    pub fn new(io: T) -> Self {
+        AssertAsync(io)
+    }
+
+    /// Gets a reference to the inner I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader: &[u8] = b"hello";
+    ///
+    /// let async_reader = io::AssertAsync::new(reader);
+    /// let r = async_reader.get_ref();
+    /// ```
+    pub fn get_ref(&self) -> &T {
+        &self.0
+    }
+
+    /// Gets a mutable reference to the inner I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader: &[u8] = b"hello";
+    ///
+    /// let mut async_reader = io::AssertAsync::new(reader);
+    /// let r = async_reader.get_mut();
+    /// ```
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+
+    /// Extracts the inner I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader: &[u8] = b"hello";
+    ///
+    /// let async_reader = io::AssertAsync::new(reader);
+    /// let inner = async_reader.into_inner();
+    /// ```
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T: std::io::Read> AsyncRead for AssertAsync<T> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        loop {
+            match self.0.read(buf) {
+                Err(err) if err.kind() == ErrorKind::Interrupted => {}
+                res => return Poll::Ready(res),
+            }
+        }
+    }
+
+    fn poll_read_vectored(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
+        loop {
+            match self.0.read_vectored(bufs) {
+                Err(err) if err.kind() == ErrorKind::Interrupted => {}
+                res => return Poll::Ready(res),
+            }
+        }
+    }
+}
+
+impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        loop {
+            match self.0.write(buf) {
+                Err(err) if err.kind() == ErrorKind::Interrupted => {}
+                res => return Poll::Ready(res),
+            }
+        }
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        bufs: &[IoSlice<'_>],
+    ) -> Poll<Result<usize>> {
+        loop {
+            match self.0.write_vectored(bufs) {
+                Err(err) if err.kind() == ErrorKind::Interrupted => {}
+                res => return Poll::Ready(res),
+            }
+        }
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            match self.0.flush() {
+                Err(err) if err.kind() == ErrorKind::Interrupted => {}
+                res => return Poll::Ready(res),
+            }
+        }
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush(cx)
+    }
+}
+
+impl<T: std::io::Seek> AsyncSeek for AssertAsync<T> {
+    fn poll_seek(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        pos: SeekFrom,
+    ) -> Poll<Result<u64>> {
+        loop {
+            match self.0.seek(pos) {
+                Err(err) if err.kind() == ErrorKind::Interrupted => {}
+                res => return Poll::Ready(res),
+            }
+        }
+    }
+}
+
+/// Blocks on all async I/O operations and implements [`std::io`] traits.
 ///
 /// Sometimes async I/O needs to be used in a blocking manner. If calling [`future::block_on()`]
 /// manually all the time becomes too tedious, use this type for more convenient blocking on async
@@ -172,7 +341,7 @@ impl<T> BlockOn<T> {
     /// pin!(reader);
     ///
     /// let blocking_reader = io::BlockOn::new(reader);
-    /// let inner = blocking_reader.get_ref();
+    /// let r = blocking_reader.get_ref();
     /// ```
     pub fn get_ref(&self) -> &T {
         &self.0
@@ -189,7 +358,7 @@ impl<T> BlockOn<T> {
     /// pin!(reader);
     ///
     /// let mut blocking_reader = io::BlockOn::new(reader);
-    /// let inner = blocking_reader.get_mut();
+    /// let r = blocking_reader.get_mut();
     /// ```
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.0
