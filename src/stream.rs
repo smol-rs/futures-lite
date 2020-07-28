@@ -569,8 +569,7 @@ pub trait StreamExt: Stream {
         NextFuture { stream: self }
     }
 
-    /// Takes a closure and creates a stream that calls that closure on every element of this
-    /// stream.
+    /// Maps items of the stream to new values using a closure.
     ///
     /// # Examples
     ///
@@ -578,7 +577,6 @@ pub trait StreamExt: Stream {
     /// use futures_lite::*;
     ///
     /// # future::block_on(async {
-    ///
     /// let s = stream::iter(vec![1, 2, 3]);
     /// let mut s = s.map(|x| 2 * x);
     ///
@@ -594,6 +592,60 @@ pub trait StreamExt: Stream {
         F: FnMut(Self::Item) -> B,
     {
         Map { stream: self, f }
+    }
+
+    /// Keeps items of the stream for which `predicate` returns `true`.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![1, 2, 3, 4]);
+    /// let mut s = s.filter(|i| i % 2 == 0);
+    ///
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, Some(4));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn filter<P>(self, predicate: P) -> Filter<Self, P>
+    where
+        Self: Sized,
+        P: FnMut(&Self::Item) -> bool,
+    {
+        Filter {
+            stream: self,
+            predicate,
+        }
+    }
+
+    /// Filters and maps items of the stream using a closure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec!["1", "lol", "3", "NaN", "5"]);
+    /// let mut s = s.filter_map(|a| a.parse::<u32>().ok());
+    ///
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, Some(3));
+    /// assert_eq!(s.next().await, Some(5));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn filter_map<B, F>(self, f: F) -> FilterMap<Self, F>
+    where
+        Self: Sized,
+        F: FnMut(Self::Item) -> Option<B>,
+    {
+        FilterMap { stream: self, f }
     }
 
     /// Collects all items in the stream into a collection.
@@ -762,6 +814,25 @@ pub trait StreamExt: Stream {
 }
 
 impl<T: ?Sized> StreamExt for T where T: Stream {}
+
+/// The `Try` trait is not stable yet, so we use this hack to constrain types to `Result<T, E>`.
+mod try_hack {
+    pub trait Result {
+        type Ok;
+        type Err;
+
+        fn into_result(self) -> std::result::Result<Self::Ok, Self::Err>;
+    }
+
+    impl<T, E> Result for std::result::Result<T, E> {
+        type Ok = T;
+        type Err = E;
+
+        fn into_result(self) -> std::result::Result<T, E> {
+            self
+        }
+    }
+}
 
 /// Type alias for `Pin<Box<dyn Stream<Item = T> + Send>>`.
 ///
@@ -975,21 +1046,65 @@ where
     }
 }
 
-/// The `Try` trait is not stable yet, so we use this hack to constrain types to `Result<T, E>`.
-mod try_hack {
-    pub trait Result {
-        type Ok;
-        type Err;
-
-        fn into_result(self) -> std::result::Result<Self::Ok, Self::Err>;
+pin_project! {
+    /// Stream for the [`StreamExt::filter()`] method.
+    #[derive(Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Filter<S, P> {
+        #[pin]
+        stream: S,
+        predicate: P,
     }
+}
 
-    impl<T, E> Result for std::result::Result<T, E> {
-        type Ok = T;
-        type Err = E;
+impl<S, P> Stream for Filter<S, P>
+where
+    S: Stream,
+    P: FnMut(&S::Item) -> bool,
+{
+    type Item = S::Item;
 
-        fn into_result(self) -> std::result::Result<T, E> {
-            self
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                None => return Poll::Ready(None),
+                Some(v) if (this.predicate)(&v) => return Poll::Ready(Some(v)),
+                Some(_) => {}
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::filter_map()`] method.
+    #[derive(Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct FilterMap<S, F> {
+        #[pin]
+        stream: S,
+        f: F,
+    }
+}
+
+impl<S, F, B> Stream for FilterMap<S, F>
+where
+    S: Stream,
+    F: FnMut(S::Item) -> Option<B>,
+{
+    type Item = B;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                None => return Poll::Ready(None),
+                Some(v) => {
+                    if let Some(b) = (this.f)(v) {
+                        return Poll::Ready(Some(b));
+                    }
+                }
+            }
         }
     }
 }
