@@ -2561,7 +2561,7 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteAllFuture<'_, T> {
         let Self { writer, buf } = &mut *self;
 
         while !buf.is_empty() {
-            let n = futures_core::ready!(Pin::new(&mut **writer).poll_write(cx, buf))?;
+            let n = ready!(Pin::new(&mut **writer).poll_write(cx, buf))?;
             let (_, rest) = mem::replace(buf, &[]).split_at(n);
             *buf = rest;
 

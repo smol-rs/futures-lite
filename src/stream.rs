@@ -96,6 +96,10 @@ impl<T> Stream for Empty<T> {
     fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(None)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(0))
+    }
 }
 
 /// Creates a stream from an iterator.
@@ -217,6 +221,10 @@ impl<T> Stream for Pending<T> {
     fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<T>> {
         Poll::Pending
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(0))
+    }
 }
 
 /// Creates a stream from a function returning [`Poll`].
@@ -300,6 +308,10 @@ impl<T: Clone> Stream for Repeat<T> {
     fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(Some(self.item.clone()))
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::max_value(), None)
+    }
 }
 
 /// Creates an infinite stream from a closure that generates items.
@@ -341,6 +353,10 @@ where
     fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let item = (&mut self.f)();
         Poll::Ready(Some(item))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::max_value(), None)
     }
 }
 
@@ -553,6 +569,33 @@ pub trait StreamExt: Stream {
         NextFuture { stream: self }
     }
 
+    /// Takes a closure and creates a stream that calls that closure on every element of this
+    /// stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    ///
+    /// let s = stream::iter(vec![1, 2, 3]);
+    /// let mut s = s.map(|x| 2 * x);
+    ///
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, Some(4));
+    /// assert_eq!(s.next().await, Some(6));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn map<B, F>(self, f: F) -> Map<Self, F>
+    where
+        Self: Sized,
+        F: FnMut(Self::Item) -> B,
+    {
+        Map { stream: self, f }
+    }
+
     /// Collects all items in the stream into a collection.
     ///
     /// # Examples
@@ -715,16 +758,6 @@ pub trait StreamExt: Stream {
         Self: Sized + 'static,
     {
         Box::pin(self)
-    }
-
-    /// Takes a closure and creates a stream that calls that closure on every
-    /// element of this stream.
-    fn map<B, F>(self, f: F) -> Map<Self, F>
-    where
-        Self: Sized,
-        F: FnMut(Self::Item) -> B,
-    {
-        Map::new(self, f)
     }
 }
 
@@ -916,19 +949,11 @@ where
 pin_project! {
     /// Stream for the [`StreamExt::map()`] method.
     #[derive(Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Map<S, F> {
         #[pin]
         stream: S,
         f: F,
-    }
-}
-
-impl<S, F> Map<S, F> {
-    pub(crate) fn new(stream: S, f: F) -> Self {
-        Self {
-            stream,
-            f,
-        }
     }
 }
 
@@ -941,8 +966,12 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        let next = futures_core::ready!(this.stream.poll_next(cx));
+        let next = ready!(this.stream.poll_next(cx));
         Poll::Ready(next.map(this.f))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.stream.size_hint()
     }
 }
 
