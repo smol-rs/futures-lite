@@ -53,10 +53,10 @@ pub fn block_on<S: Stream + Unpin>(stream: S) -> BlockOn<S> {
 
 /// Iterator for the [`block_on()`] function.
 #[derive(Debug)]
-pub struct BlockOn<T>(T);
+pub struct BlockOn<S>(S);
 
-impl<T: Stream + Unpin> Iterator for BlockOn<T> {
-    type Item = T::Item;
+impl<S: Stream + Unpin> Iterator for BlockOn<S> {
+    type Item = S::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         future::block_on(self.0.next())
@@ -569,6 +569,31 @@ pub trait StreamExt: Stream {
         NextFuture { stream: self }
     }
 
+    /// Counts the number of elements in the stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s1 = stream::iter(vec![0]);
+    /// let s2 = stream::iter(vec![1, 2, 3]);
+    ///
+    /// assert_eq!(s1.count().await, 1);
+    /// assert_eq!(s2.count().await, 3);
+    /// # });
+    /// ```
+    fn count(self) -> CountFuture<Self>
+    where
+        Self: Sized,
+    {
+        CountFuture {
+            stream: self,
+            count: 0,
+        }
+    }
+
     /// Maps items of the stream to new values using a closure.
     ///
     /// # Examples
@@ -586,10 +611,10 @@ pub trait StreamExt: Stream {
     /// assert_eq!(s.next().await, None);
     /// # });
     /// ```
-    fn map<B, F>(self, f: F) -> Map<Self, F>
+    fn map<T, F>(self, f: F) -> Map<Self, F>
     where
         Self: Sized,
-        F: FnMut(Self::Item) -> B,
+        F: FnMut(Self::Item) -> T,
     {
         Map { stream: self, f }
     }
@@ -640,10 +665,10 @@ pub trait StreamExt: Stream {
     /// assert_eq!(s.next().await, None);
     /// # });
     /// ```
-    fn filter_map<B, F>(self, f: F) -> FilterMap<Self, F>
+    fn filter_map<T, F>(self, f: F) -> FilterMap<Self, F>
     where
         Self: Sized,
-        F: FnMut(Self::Item) -> Option<B>,
+        F: FnMut(Self::Item) -> Option<T>,
     {
         FilterMap { stream: self, f }
     }
@@ -715,10 +740,10 @@ pub trait StreamExt: Stream {
     /// assert_eq!(sum, 6);
     /// # })
     /// ```
-    fn fold<B, F>(self, init: B, f: F) -> FoldFuture<Self, F, B>
+    fn fold<T, F>(self, init: T, f: F) -> FoldFuture<Self, F, T>
     where
         Self: Sized,
-        F: FnMut(B, Self::Item) -> B,
+        F: FnMut(T, Self::Item) -> T,
     {
         FoldFuture {
             stream: self,
@@ -813,7 +838,7 @@ pub trait StreamExt: Stream {
     }
 }
 
-impl<T: ?Sized> StreamExt for T where T: Stream {}
+impl<S: ?Sized> StreamExt for S where S: Stream {}
 
 /// The `Try` trait is not stable yet, so we use this hack to constrain types to `Result<T, E>`.
 mod try_hack {
@@ -863,14 +888,14 @@ pub type BoxedLocal<T> = Pin<Box<dyn Stream<Item = T>>>;
 /// Future for the [`StreamExt::next()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct NextFuture<'a, T: Unpin + ?Sized> {
+pub struct NextFuture<'a, T: ?Sized> {
     stream: &'a mut T,
 }
 
-impl<St: ?Sized + Unpin> Unpin for NextFuture<'_, St> {}
+impl<S: ?Sized + Unpin> Unpin for NextFuture<'_, S> {}
 
-impl<T: Stream + Unpin + ?Sized> Future for NextFuture<'_, T> {
-    type Output = Option<T::Item>;
+impl<S: Stream + Unpin + ?Sized> Future for NextFuture<'_, S> {
+    type Output = Option<S::Item>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut *self.stream).poll_next(cx)
@@ -878,20 +903,44 @@ impl<T: Stream + Unpin + ?Sized> Future for NextFuture<'_, T> {
 }
 
 pin_project! {
+    /// Future for the [`StreamExt::count()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct CountFuture<S: ?Sized> {
+        count: usize,
+        #[pin]
+        stream: S,
+    }
+}
+
+impl<S: Stream + ?Sized> Future for CountFuture<S> {
+    type Output = usize;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(self.as_mut().project().stream.poll_next(cx)) {
+                None => return Poll::Ready(self.count),
+                Some(_) => *self.as_mut().project().count += 1,
+            }
+        }
+    }
+}
+
+pin_project! {
     /// Future for the [`StreamExt::collect()`] method.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct CollectFuture<St, C> {
+    pub struct CollectFuture<S, C> {
         #[pin]
-        stream: St,
+        stream: S,
         collection: C,
     }
 }
 
-impl<St, C> Future for CollectFuture<St, C>
+impl<S, C> Future for CollectFuture<S, C>
 where
-    St: Stream,
-    C: Default + Extend<St::Item>,
+    S: Stream,
+    C: Default + Extend<S::Item>,
 {
     type Output = C;
 
@@ -914,16 +963,16 @@ pin_project! {
     /// Future for the [`StreamExt::try_collect()`] method.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct TryCollectFuture<St, C> {
+    pub struct TryCollectFuture<S, C> {
         #[pin]
-        stream: St,
+        stream: S,
         items: C,
     }
 }
 
-impl<T, E, St, C> Future for TryCollectFuture<St, C>
+impl<T, E, S, C> Future for TryCollectFuture<S, C>
 where
-    St: Stream<Item = Result<T, E>>,
+    S: Stream<Item = Result<T, E>>,
     C: Default + Extend<T>,
 {
     type Output = Result<C, E>;
@@ -943,20 +992,20 @@ pin_project! {
     /// Future for the [`StreamExt::fold()`] method.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct FoldFuture<S, F, B> {
+    pub struct FoldFuture<S, F, T> {
         #[pin]
         stream: S,
         f: F,
-        acc: Option<B>,
+        acc: Option<T>,
     }
 }
 
-impl<S, F, B> Future for FoldFuture<S, F, B>
+impl<S, F, T> Future for FoldFuture<S, F, T>
 where
     S: Stream + Sized,
-    F: FnMut(B, S::Item) -> B,
+    F: FnMut(T, S::Item) -> T,
 {
-    type Output = B;
+    type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
@@ -1028,12 +1077,12 @@ pin_project! {
     }
 }
 
-impl<S, F, B> Stream for Map<S, F>
+impl<S, F, T> Stream for Map<S, F>
 where
     S: Stream,
-    F: FnMut(S::Item) -> B,
+    F: FnMut(S::Item) -> T,
 {
-    type Item = B;
+    type Item = T;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
@@ -1087,12 +1136,12 @@ pin_project! {
     }
 }
 
-impl<S, F, B> Stream for FilterMap<S, F>
+impl<S, F, T> Stream for FilterMap<S, F>
 where
     S: Stream,
-    F: FnMut(S::Item) -> Option<B>,
+    F: FnMut(S::Item) -> Option<T>,
 {
-    type Item = B;
+    type Item = T;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
@@ -1100,8 +1149,8 @@ where
             match ready!(this.stream.as_mut().poll_next(cx)) {
                 None => return Poll::Ready(None),
                 Some(v) => {
-                    if let Some(b) = (this.f)(v) {
-                        return Poll::Ready(Some(b));
+                    if let Some(t) = (this.f)(v) {
+                        return Poll::Ready(Some(t));
                     }
                 }
             }

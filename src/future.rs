@@ -15,7 +15,7 @@
 //! # });
 //! ```
 
-// TODO: race(), race!, try_race(), try_race! (randomized for fairness)
+// TODO: race!, try_race(), try_race! (randomized for fairness)
 // TODO: join!, try_join!
 
 use std::cell::RefCell;
@@ -316,10 +316,10 @@ impl Future for YieldNow {
 /// assert_eq!(future::join(a, b).await, (1, 2));
 /// # })
 /// ```
-pub fn join<Fut1, Fut2>(future1: Fut1, future2: Fut2) -> Join<Fut1, Fut2>
+pub fn join<F1, F2>(future1: F1, future2: F2) -> Join<F1, F2>
 where
-    Fut1: Future,
-    Fut2: Future,
+    F1: Future,
+    F2: Future,
 {
     Join {
         future1: future1,
@@ -333,26 +333,26 @@ pin_project! {
     /// Future for the [`join()`] function.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct Join<Fut1, Fut2>
+    pub struct Join<F1, F2>
     where
-        Fut1: Future,
-        Fut2: Future,
+        F1: Future,
+        F2: Future,
     {
         #[pin]
-        future1: Fut1,
-        output1: Option<Fut1::Output>,
+        future1: F1,
+        output1: Option<F1::Output>,
         #[pin]
-        future2: Fut2,
-        output2: Option<Fut2::Output>,
+        future2: F2,
+        output2: Option<F2::Output>,
     }
 }
 
-impl<Fut1, Fut2> Future for Join<Fut1, Fut2>
+impl<F1, F2> Future for Join<F1, F2>
 where
-    Fut1: Future,
-    Fut2: Future,
+    F1: Future,
+    F2: Future,
 {
-    type Output = (Fut1::Output, Fut2::Output);
+    type Output = (F1::Output, F2::Output);
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -391,10 +391,10 @@ where
 /// assert_eq!(future::try_join(a, b).await, Err(2));
 /// # })
 /// ```
-pub fn try_join<T1, T2, E, Fut1, Fut2>(future1: Fut1, future2: Fut2) -> TryJoin<Fut1, Fut2>
+pub fn try_join<T1, T2, E, F1, F2>(future1: F1, future2: F2) -> TryJoin<F1, F2>
 where
-    Fut1: Future<Output = Result<T1, E>>,
-    Fut2: Future<Output = Result<T2, E>>,
+    F1: Future<Output = Result<T1, E>>,
+    F2: Future<Output = Result<T2, E>>,
 {
     TryJoin {
         future1: future1,
@@ -408,24 +408,24 @@ pin_project! {
     /// Future for the [`try_join()`] function.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct TryJoin<Fut1, Fut2>
+    pub struct TryJoin<F1, F2>
     where
-        Fut1: Future,
-        Fut2: Future,
+        F1: Future,
+        F2: Future,
     {
         #[pin]
-        future1: Fut1,
-        output1: Option<Fut1::Output>,
+        future1: F1,
+        output1: Option<F1::Output>,
         #[pin]
-        future2: Fut2,
-        output2: Option<Fut2::Output>,
+        future2: F2,
+        output2: Option<F2::Output>,
     }
 }
 
-impl<T1, T2, E, Fut1, Fut2> Future for TryJoin<Fut1, Fut2>
+impl<T1, T2, E, F1, F2> Future for TryJoin<F1, F2>
 where
-    Fut1: Future<Output = Result<T1, E>>,
-    Fut2: Future<Output = Result<T2, E>>,
+    F1: Future<Output = Result<T1, E>>,
+    F2: Future<Output = Result<T2, E>>,
 {
     type Output = Result<(T1, T2), E>;
 
@@ -483,10 +483,10 @@ where
 /// let res = race(ready(1), ready(2)).await;
 /// # })
 /// ```
-pub fn race<T, A, B>(future1: A, future2: B) -> Race<A, B>
+pub fn race<T, F1, F2>(future1: F1, future2: F2) -> Race<F1, F2>
 where
-    A: Future<Output = T>,
-    B: Future<Output = T>,
+    F1: Future<Output = T>,
+    F2: Future<Output = T>,
 {
     Race { future1, future2 }
 }
@@ -495,18 +495,18 @@ pin_project! {
     /// Future for the [`race()`] function.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct Race<A, B> {
+    pub struct Race<F1, F2> {
         #[pin]
-        future1: A,
+        future1: F1,
         #[pin]
-        future2: B,
+        future2: F2,
     }
 }
 
-impl<T, A, B> Future for Race<A, B>
+impl<T, F1, F2> Future for Race<F1, F2>
 where
-    A: Future<Output = T>,
-    B: Future<Output = T>,
+    F1: Future<Output = T>,
+    F2: Future<Output = T>,
 {
     type Output = T;
 
@@ -637,24 +637,24 @@ pub trait FutureExt: Future {
     }
 }
 
-impl<T: ?Sized> FutureExt for T where T: Future {}
+impl<F: ?Sized> FutureExt for F where F: Future {}
 
 pin_project! {
     /// Future for the [`or()`][`FutureExt::or()`] method.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct Or<A, B> {
+    pub struct Or<F1, F2> {
         #[pin]
-        future1: A,
+        future1: F1,
         #[pin]
-        future2: B,
+        future2: F2,
     }
 }
 
-impl<T, A, B> Future for Or<A, B>
+impl<T, F1, F2> Future for Or<F1, F2>
 where
-    A: Future<Output = T>,
-    B: Future<Output = T>,
+    F1: Future<Output = T>,
+    F2: Future<Output = T>,
 {
     type Output = T;
 

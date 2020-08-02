@@ -1436,16 +1436,16 @@ impl<R: AsyncBufRead + ?Sized> AsyncBufReadExt for R {}
 /// Future for the [`AsyncBufReadExt::read_until()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ReadUntilFuture<'a, T: Unpin + ?Sized> {
-    reader: &'a mut T,
+pub struct ReadUntilFuture<'a, R: Unpin + ?Sized> {
+    reader: &'a mut R,
     byte: u8,
     buf: &'a mut Vec<u8>,
     read: usize,
 }
 
-impl<T: Unpin + ?Sized> Unpin for ReadUntilFuture<'_, T> {}
+impl<R: Unpin + ?Sized> Unpin for ReadUntilFuture<'_, R> {}
 
-impl<T: AsyncBufRead + Unpin + ?Sized> Future for ReadUntilFuture<'_, T> {
+impl<R: AsyncBufRead + Unpin + ?Sized> Future for ReadUntilFuture<'_, R> {
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -1491,16 +1491,16 @@ fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
 /// Future for the [`AsyncBufReadExt::read_line()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ReadLineFuture<'a, T: Unpin + ?Sized> {
-    reader: &'a mut T,
+pub struct ReadLineFuture<'a, R: Unpin + ?Sized> {
+    reader: &'a mut R,
     buf: &'a mut String,
     bytes: Vec<u8>,
     read: usize,
 }
 
-impl<T: Unpin + ?Sized> Unpin for ReadLineFuture<'_, T> {}
+impl<R: Unpin + ?Sized> Unpin for ReadLineFuture<'_, R> {}
 
-impl<T: AsyncBufRead + Unpin + ?Sized> Future for ReadLineFuture<'_, T> {
+impl<R: AsyncBufRead + Unpin + ?Sized> Future for ReadLineFuture<'_, R> {
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -1837,14 +1837,14 @@ impl<R: AsyncRead + ?Sized> AsyncReadExt for R {}
 /// Future for the [`AsyncReadExt::read()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ReadFuture<'a, T: Unpin + ?Sized> {
-    reader: &'a mut T,
+pub struct ReadFuture<'a, R: Unpin + ?Sized> {
+    reader: &'a mut R,
     buf: &'a mut [u8],
 }
 
-impl<T: Unpin + ?Sized> Unpin for ReadFuture<'_, T> {}
+impl<R: Unpin + ?Sized> Unpin for ReadFuture<'_, R> {}
 
-impl<T: AsyncRead + Unpin + ?Sized> Future for ReadFuture<'_, T> {
+impl<R: AsyncRead + Unpin + ?Sized> Future for ReadFuture<'_, R> {
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -1856,14 +1856,14 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadFuture<'_, T> {
 /// Future for the [`AsyncReadExt::read_vectored()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ReadVectoredFuture<'a, T: Unpin + ?Sized> {
-    reader: &'a mut T,
+pub struct ReadVectoredFuture<'a, R: Unpin + ?Sized> {
+    reader: &'a mut R,
     bufs: &'a mut [IoSliceMut<'a>],
 }
 
-impl<T: Unpin + ?Sized> Unpin for ReadVectoredFuture<'_, T> {}
+impl<R: Unpin + ?Sized> Unpin for ReadVectoredFuture<'_, R> {}
 
-impl<T: AsyncRead + Unpin + ?Sized> Future for ReadVectoredFuture<'_, T> {
+impl<R: AsyncRead + Unpin + ?Sized> Future for ReadVectoredFuture<'_, R> {
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -1875,15 +1875,15 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadVectoredFuture<'_, T> {
 /// Future for the [`AsyncReadExt::read_to_end()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ReadToEndFuture<'a, T: Unpin + ?Sized> {
-    reader: &'a mut T,
+pub struct ReadToEndFuture<'a, R: Unpin + ?Sized> {
+    reader: &'a mut R,
     buf: &'a mut Vec<u8>,
     start_len: usize,
 }
 
-impl<T: Unpin + ?Sized> Unpin for ReadToEndFuture<'_, T> {}
+impl<R: Unpin + ?Sized> Unpin for ReadToEndFuture<'_, R> {}
 
-impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToEndFuture<'_, T> {
+impl<R: AsyncRead + Unpin + ?Sized> Future for ReadToEndFuture<'_, R> {
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -1899,16 +1899,16 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToEndFuture<'_, T> {
 /// Future for the [`AsyncReadExt::read_to_string()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ReadToStringFuture<'a, T: Unpin + ?Sized> {
-    reader: &'a mut T,
+pub struct ReadToStringFuture<'a, R: Unpin + ?Sized> {
+    reader: &'a mut R,
     buf: &'a mut String,
     bytes: Vec<u8>,
     start_len: usize,
 }
 
-impl<T: Unpin + ?Sized> Unpin for ReadToStringFuture<'_, T> {}
+impl<R: Unpin + ?Sized> Unpin for ReadToStringFuture<'_, R> {}
 
-impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToStringFuture<'_, T> {
+impl<R: AsyncRead + Unpin + ?Sized> Future for ReadToStringFuture<'_, R> {
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -1995,14 +1995,14 @@ fn read_to_end_internal<R: AsyncRead + ?Sized>(
 /// Future for the [`AsyncReadExt::read_exact()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ReadExactFuture<'a, T: Unpin + ?Sized> {
-    reader: &'a mut T,
+pub struct ReadExactFuture<'a, R: Unpin + ?Sized> {
+    reader: &'a mut R,
     buf: &'a mut [u8],
 }
 
-impl<T: Unpin + ?Sized> Unpin for ReadExactFuture<'_, T> {}
+impl<R: Unpin + ?Sized> Unpin for ReadExactFuture<'_, R> {}
 
-impl<T: AsyncRead + Unpin + ?Sized> Future for ReadExactFuture<'_, T> {
+impl<R: AsyncRead + Unpin + ?Sized> Future for ReadExactFuture<'_, R> {
     type Output = Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -2025,14 +2025,14 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadExactFuture<'_, T> {
 pin_project! {
     /// Reader for the [`AsyncReadExt::take()`] method.
     #[derive(Debug)]
-    pub struct Take<T> {
+    pub struct Take<R> {
         #[pin]
-        inner: T,
+        inner: R,
         limit: u64,
     }
 }
 
-impl<T> Take<T> {
+impl<R> Take<R> {
     /// Returns the number of bytes before this adapter will return EOF.
     ///
     /// Note that EOF may be reached sooner if the underlying reader is shorter than the limit.
@@ -2084,7 +2084,7 @@ impl<T> Take<T> {
     /// let reader = reader.take(3);
     /// let r = reader.get_ref();
     /// ```
-    pub fn get_ref(&self) -> &T {
+    pub fn get_ref(&self) -> &R {
         &self.inner
     }
 
@@ -2100,7 +2100,7 @@ impl<T> Take<T> {
     /// let mut reader = reader.take(3);
     /// let r = reader.get_mut();
     /// ```
-    pub fn get_mut(&mut self) -> &mut T {
+    pub fn get_mut(&mut self) -> &mut R {
         &mut self.inner
     }
 
@@ -2116,12 +2116,12 @@ impl<T> Take<T> {
     /// let reader = reader.take(3);
     /// let reader = reader.into_inner();
     /// ```
-    pub fn into_inner(self) -> T {
+    pub fn into_inner(self) -> R {
         self.inner
     }
 }
 
-impl<T: AsyncRead> AsyncRead for Take<T> {
+impl<R: AsyncRead> AsyncRead for Take<R> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -2154,7 +2154,7 @@ fn take_read_internal<R: AsyncRead + ?Sized>(
     }
 }
 
-impl<T: AsyncBufRead> AsyncBufRead for Take<T> {
+impl<R: AsyncBufRead> AsyncBufRead for Take<R> {
     fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         let this = self.project();
 
@@ -2183,11 +2183,11 @@ impl<T: AsyncBufRead> AsyncBufRead for Take<T> {
 
 /// Reader for the [`AsyncReadExt::bytes()`] method.
 #[derive(Debug)]
-pub struct Bytes<T> {
-    inner: T,
+pub struct Bytes<R> {
+    inner: R,
 }
 
-impl<T: AsyncRead + Unpin> Stream for Bytes<T> {
+impl<R: AsyncRead + Unpin> Stream for Bytes<R> {
     type Item = Result<u8>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -2206,16 +2206,16 @@ impl<T: AsyncRead + Unpin> Stream for Bytes<T> {
 
 pin_project! {
     /// Reader for the [`AsyncReadExt::chain()`] method.
-    pub struct Chain<T, U> {
+    pub struct Chain<R1, R2> {
         #[pin]
-        first: T,
+        first: R1,
         #[pin]
-        second: U,
+        second: R2,
         done_first: bool,
     }
 }
 
-impl<T, U> Chain<T, U> {
+impl<R1, R2> Chain<R1, R2> {
     /// Gets references to the underlying readers.
     ///
     /// # Examples
@@ -2229,7 +2229,7 @@ impl<T, U> Chain<T, U> {
     /// let reader = r1.chain(r2);
     /// let (r1, r2) = reader.get_ref();
     /// ```
-    pub fn get_ref(&self) -> (&T, &U) {
+    pub fn get_ref(&self) -> (&R1, &R2) {
         (&self.first, &self.second)
     }
 
@@ -2246,7 +2246,7 @@ impl<T, U> Chain<T, U> {
     /// let mut reader = r1.chain(r2);
     /// let (r1, r2) = reader.get_mut();
     /// ```
-    pub fn get_mut(&mut self) -> (&mut T, &mut U) {
+    pub fn get_mut(&mut self) -> (&mut R1, &mut R2) {
         (&mut self.first, &mut self.second)
     }
 
@@ -2263,21 +2263,21 @@ impl<T, U> Chain<T, U> {
     /// let reader = r1.chain(r2);
     /// let (r1, r2) = reader.into_inner();
     /// ```
-    pub fn into_inner(self) -> (T, U) {
+    pub fn into_inner(self) -> (R1, R2) {
         (self.first, self.second)
     }
 }
 
-impl<T: fmt::Debug, U: fmt::Debug> fmt::Debug for Chain<T, U> {
+impl<R1: fmt::Debug, R2: fmt::Debug> fmt::Debug for Chain<R1, R2> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Chain")
-            .field("t", &self.first)
-            .field("u", &self.second)
+            .field("r1", &self.first)
+            .field("r2", &self.second)
             .finish()
     }
 }
 
-impl<T: AsyncRead, U: AsyncRead> AsyncRead for Chain<T, U> {
+impl<R1: AsyncRead, R2: AsyncRead> AsyncRead for Chain<R1, R2> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -2313,7 +2313,7 @@ impl<T: AsyncRead, U: AsyncRead> AsyncRead for Chain<T, U> {
     }
 }
 
-impl<T: AsyncBufRead, U: AsyncBufRead> AsyncBufRead for Chain<T, U> {
+impl<R1: AsyncBufRead, R2: AsyncBufRead> AsyncBufRead for Chain<R1, R2> {
     fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         let this = self.project();
         if !*this.done_first {
@@ -2375,14 +2375,14 @@ impl<S: AsyncSeek + ?Sized> AsyncSeekExt for S {}
 /// Future for the [`AsyncSeekExt::seek()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct SeekFuture<'a, T: Unpin + ?Sized> {
-    seeker: &'a mut T,
+pub struct SeekFuture<'a, S: Unpin + ?Sized> {
+    seeker: &'a mut S,
     pos: SeekFrom,
 }
 
-impl<T: Unpin + ?Sized> Unpin for SeekFuture<'_, T> {}
+impl<S: Unpin + ?Sized> Unpin for SeekFuture<'_, S> {}
 
-impl<T: AsyncSeek + Unpin + ?Sized> Future for SeekFuture<'_, T> {
+impl<S: AsyncSeek + Unpin + ?Sized> Future for SeekFuture<'_, S> {
     type Output = Result<u64>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -2502,19 +2502,19 @@ pub trait AsyncWriteExt: AsyncWrite {
     }
 }
 
-impl<R: AsyncWrite + ?Sized> AsyncWriteExt for R {}
+impl<W: AsyncWrite + ?Sized> AsyncWriteExt for W {}
 
 /// Future for the [`AsyncWriteExt::write()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct WriteFuture<'a, T: Unpin + ?Sized> {
-    writer: &'a mut T,
+pub struct WriteFuture<'a, W: Unpin + ?Sized> {
+    writer: &'a mut W,
     buf: &'a [u8],
 }
 
-impl<T: Unpin + ?Sized> Unpin for WriteFuture<'_, T> {}
+impl<W: Unpin + ?Sized> Unpin for WriteFuture<'_, W> {}
 
-impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteFuture<'_, T> {
+impl<W: AsyncWrite + Unpin + ?Sized> Future for WriteFuture<'_, W> {
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -2526,14 +2526,14 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteFuture<'_, T> {
 /// Future for the [`AsyncWriteExt::write_vectored()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct WriteVectoredFuture<'a, T: Unpin + ?Sized> {
-    writer: &'a mut T,
+pub struct WriteVectoredFuture<'a, W: Unpin + ?Sized> {
+    writer: &'a mut W,
     bufs: &'a [IoSlice<'a>],
 }
 
-impl<T: Unpin + ?Sized> Unpin for WriteVectoredFuture<'_, T> {}
+impl<W: Unpin + ?Sized> Unpin for WriteVectoredFuture<'_, W> {}
 
-impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteVectoredFuture<'_, T> {
+impl<W: AsyncWrite + Unpin + ?Sized> Future for WriteVectoredFuture<'_, W> {
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -2545,14 +2545,14 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteVectoredFuture<'_, T> {
 /// Future for the [`AsyncWriteExt::write_all()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct WriteAllFuture<'a, T: Unpin + ?Sized> {
-    writer: &'a mut T,
+pub struct WriteAllFuture<'a, W: Unpin + ?Sized> {
+    writer: &'a mut W,
     buf: &'a [u8],
 }
 
-impl<T: Unpin + ?Sized> Unpin for WriteAllFuture<'_, T> {}
+impl<W: Unpin + ?Sized> Unpin for WriteAllFuture<'_, W> {}
 
-impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteAllFuture<'_, T> {
+impl<W: AsyncWrite + Unpin + ?Sized> Future for WriteAllFuture<'_, W> {
     type Output = Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -2575,13 +2575,13 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteAllFuture<'_, T> {
 /// Future for the [`AsyncWriteExt::flush()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct FlushFuture<'a, T: Unpin + ?Sized> {
-    writer: &'a mut T,
+pub struct FlushFuture<'a, W: Unpin + ?Sized> {
+    writer: &'a mut W,
 }
 
-impl<T: Unpin + ?Sized> Unpin for FlushFuture<'_, T> {}
+impl<W: Unpin + ?Sized> Unpin for FlushFuture<'_, W> {}
 
-impl<T: AsyncWrite + Unpin + ?Sized> Future for FlushFuture<'_, T> {
+impl<W: AsyncWrite + Unpin + ?Sized> Future for FlushFuture<'_, W> {
     type Output = Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -2592,13 +2592,13 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for FlushFuture<'_, T> {
 /// Future for the [`AsyncWriteExt::close()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct CloseFuture<'a, T: Unpin + ?Sized> {
-    writer: &'a mut T,
+pub struct CloseFuture<'a, W: Unpin + ?Sized> {
+    writer: &'a mut W,
 }
 
-impl<T: Unpin + ?Sized> Unpin for CloseFuture<'_, T> {}
+impl<W: Unpin + ?Sized> Unpin for CloseFuture<'_, W> {}
 
-impl<T: AsyncWrite + Unpin + ?Sized> Future for CloseFuture<'_, T> {
+impl<W: AsyncWrite + Unpin + ?Sized> Future for CloseFuture<'_, W> {
     type Output = Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
