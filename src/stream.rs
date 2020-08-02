@@ -16,8 +16,17 @@
 //! ```
 
 // TODO: future() constructor that converts a future to a stream
-// TODO: merge() constructor (randomized for fairness)
-// TODO: all other missing stream combinators
+// TODO: race() that merges streams in a fair manner
+// TODO: or() that merges streams in an unfair manner
+
+// TODO: combinators: take(), take_while(), step_by(), chain(), cloned(), copied(),
+// cycle(), enumerate(), inspect(), last(), fuse(), flat_map(), flatten(),
+// peekable(),
+// min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
+// nth(), all(), find(), find_map(), partition(),
+// for_each(), try_for_each(), any(), scan(), skip(), skip_while(), zip(), unzip(), position(),
+// cmp(), partial_cmp(), ne(), ge(), eq(), gt(), le(), lt(),
+// sum(), product()
 
 use std::fmt;
 use std::future::Future;
