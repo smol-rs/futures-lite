@@ -14,8 +14,6 @@
 //! # std::io::Result::Ok(()) });
 //! ```
 
-// TODO: Async version of std::io::LineWriter
-
 use std::cmp;
 use std::fmt;
 use std::future::Future;
@@ -887,6 +885,15 @@ impl<W: AsyncWrite> BufWriter<W> {
     }
 }
 
+impl<W: AsyncWrite + fmt::Debug> fmt::Debug for BufWriter<W> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BufWriter")
+            .field("writer", &self.inner)
+            .field("buf", &self.buf)
+            .finish()
+    }
+}
+
 impl<W: AsyncWrite> AsyncWrite for BufWriter<W> {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -911,15 +918,6 @@ impl<W: AsyncWrite> AsyncWrite for BufWriter<W> {
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         ready!(self.as_mut().poll_flush_buf(cx))?;
         self.get_pin_mut().poll_close(cx)
-    }
-}
-
-impl<W: AsyncWrite + fmt::Debug> fmt::Debug for BufWriter<W> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BufWriter")
-            .field("writer", &self.inner)
-            .field("buf", &self.buf)
-            .finish()
     }
 }
 
