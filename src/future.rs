@@ -670,3 +670,38 @@ where
         Poll::Pending
     }
 }
+
+// Helper for `or!`
+#[doc(hidden)]
+#[macro_export]
+macro_rules! internal_chain_with {
+    ($method:ident, $e:expr) => { $e };
+    ($method:ident, $e:expr, $($es:expr),+) => {
+        $e.$method(internal_chain_with!($method, $($es),+))
+    };
+}
+
+/// Like [`or()`][`FutureExt::or()`], but accepts an arbitrary number of futures rather than just
+/// two. Returns the result of the first future to complete; if multiple futures complete at the
+/// same time, returns the first one to complete. All of the futures must have the same return
+/// type.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+/// use futures_lite::future::{pending, ready};
+///
+/// # future::block_on(async {
+/// assert_eq!(or!(ready(1)).await, 1);
+/// assert_eq!(or!(pending(), ready(2)).await, 2);
+/// assert_eq!(or!(pending(), pending(), ready(3)).await, 3);
+///
+/// // The first future wins.
+/// assert_eq!(or!(ready(1), ready(2), ready(3)).await, 1);
+/// # })
+/// ```
+#[macro_export]
+macro_rules! or {
+    ($($es:expr),+$(,)?) => { $crate::internal_chain_with!(or, $($es),+) };
+}
