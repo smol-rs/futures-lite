@@ -28,19 +28,25 @@
 // cmp(), partial_cmp(), ne(), ge(), eq(), gt(), le(), lt(),
 // sum(), product()
 
-use std::fmt;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::mem;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use core::fmt;
+use core::future::Future;
+use core::marker::PhantomData;
+use core::mem;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 
 #[doc(no_inline)]
 pub use futures_core::stream::Stream;
 use pin_project_lite::pin_project;
 
+#[cfg(feature = "std")]
 use crate::future;
 use crate::ready;
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
 
 /// Converts a stream into a blocking iterator.
 ///
@@ -64,6 +70,7 @@ pub fn block_on<S: Stream + Unpin>(stream: S) -> BlockOn<S> {
 #[derive(Debug)]
 pub struct BlockOn<S>(S);
 
+#[cfg(feature = "std")]
 impl<S: Stream + Unpin> Iterator for BlockOn<S> {
     type Item = S::Item;
 
@@ -855,14 +862,14 @@ mod try_hack {
         type Ok;
         type Err;
 
-        fn into_result(self) -> std::result::Result<Self::Ok, Self::Err>;
+        fn into_result(self) -> core::result::Result<Self::Ok, Self::Err>;
     }
 
-    impl<T, E> Result for std::result::Result<T, E> {
+    impl<T, E> Result for core::result::Result<T, E> {
         type Ok = T;
         type Err = E;
 
-        fn into_result(self) -> std::result::Result<T, E> {
+        fn into_result(self) -> core::result::Result<T, E> {
             self
         }
     }

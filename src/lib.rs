@@ -22,24 +22,33 @@
 
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 #[doc(no_inline)]
-pub use std::future::Future;
+pub use core::future::Future;
 
 #[doc(no_inline)]
 pub use futures_core::Stream;
+
+#[cfg(feature = "std")]
 #[doc(no_inline)]
 pub use futures_io::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncWrite};
 
 #[doc(no_inline)]
 pub use crate::future::FutureExt;
+
+#[cfg(feature = "std")]
 #[doc(no_inline)]
 pub use crate::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+
 #[doc(no_inline)]
 pub use crate::stream::StreamExt;
 
 pub mod future;
-pub mod io;
 pub mod stream;
+
+#[cfg(feature = "std")]
+pub mod io;
 
 /// Unwraps `Poll<T>` or returns [`Pending`][`std::task::Poll::Pending`].
 ///
@@ -65,8 +74,8 @@ pub mod stream;
 macro_rules! ready {
     ($e:expr $(,)?) => {
         match $e {
-            std::task::Poll::Ready(t) => t,
-            std::task::Poll::Pending => return std::task::Poll::Pending,
+            core::task::Poll::Ready(t) => t,
+            core::task::Poll::Pending => return core::task::Poll::Pending,
         }
     };
 }
@@ -97,7 +106,7 @@ macro_rules! pin {
             let mut $x = $x;
             #[allow(unused_mut)]
             let mut $x = unsafe {
-                std::pin::Pin::new_unchecked(&mut $x)
+                core::pin::Pin::new_unchecked(&mut $x)
             };
         )*
     }
