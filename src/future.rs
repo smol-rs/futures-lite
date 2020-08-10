@@ -67,7 +67,9 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
     fn parker_and_waker() -> (Parker, Waker) {
         let parker = Parker::new();
         let unparker = parker.unparker();
-        let waker = waker_fn(move || unparker.unpark());
+        let waker = waker_fn(move || {
+            unparker.unpark();
+        });
         (parker, waker)
     }
 
