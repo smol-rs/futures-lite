@@ -1,7 +1,7 @@
 //! A lightweight async prelude.
 //!
 //! This crate is a subset of [futures] that compiles an order of magnitude faster, fixes minor
-//! warts in its API, fills in some obvious gaps, and removes all unsafe code from it.
+//! warts in its API, fills in some obvious gaps, and removes almost all unsafe code from it.
 //!
 //! In short, this crate aims to be more enjoyable than [futures] but still fully compatible with
 //! it.
