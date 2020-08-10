@@ -18,20 +18,34 @@
 // TODO: race!, try_race(), try_race! (randomized for fairness)
 // TODO: join!, try_join!
 
-use std::cell::RefCell;
-use std::fmt;
+use core::fmt;
 #[doc(no_inline)]
-pub use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll, Waker};
+pub use core::future::Future;
+use core::marker::PhantomData;
+use core::pin::Pin;
 
-use parking::Parker;
 use pin_project_lite::pin_project;
-use waker_fn::waker_fn;
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
+#[cfg(not(feature = "std"))]
+use core::task::{Context, Poll};
+
+#[cfg(feature = "std")]
+use parking::Parker;
+#[cfg(feature = "std")]
+use waker_fn::waker_fn;
+#[cfg(feature = "std")]
+use core::task::{Context, Poll, Waker};
+#[cfg(feature = "std")]
+use core::cell::RefCell;
+
+#[cfg(feature = "std")]
 use crate::pin;
 
+#[cfg(feature = "std")]
 /// Blocks the current thread on a future.
 ///
 /// # Examples

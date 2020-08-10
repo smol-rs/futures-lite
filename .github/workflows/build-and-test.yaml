@@ -49,3 +49,9 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+
+      - name: Check it compiles no_std
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --no-default-features
