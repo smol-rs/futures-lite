@@ -1,3 +1,7 @@
+# Version 0.1.11
+
+- Update `parking` to v2.0.0
+
 # Version 0.1.10
 
 - Add `AssertAsync`.
