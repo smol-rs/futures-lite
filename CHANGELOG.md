@@ -1,3 +1,12 @@
+# Version 1.0.0
+
+- Add `StreamExt::map()`.
+- Add `StreamExt::count()`.
+- Add `StreamExt::filter()`.
+- Add `StreamExt::filter_map()`.
+- Rename `future::join()` to `future::zip()`.
+- Rename `future::try_join()` to `future::try_zip()`.
+
 # Version 0.1.11
 
 - Update `parking` to v2.0.0

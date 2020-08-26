@@ -1,6 +1,6 @@
 [package]
 name = "futures-lite"
-version = "0.1.11"
+version = "1.0.0"
 authors = [
   "Stjepan Glavina <stjepang@gmail.com>",
   "Contributors to futures-rs",
@@ -20,7 +20,7 @@ std = ["futures-io", "parking"]
 default = ["std"]
 
 [dependencies]
-fastrand = "1.3.3"
+fastrand = "1.3.4"
 futures-core = "0.3.5"
 futures-io = { version = "0.3.5", optional = true }
 memchr = "2.3.3"
