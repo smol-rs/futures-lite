@@ -16,7 +16,7 @@
 //! ```
 
 // TODO: race!, try_race(), try_race! (randomized for fairness)
-// TODO: join!, try_join!
+// TODO: zip!, try_zip!
 
 use core::fmt;
 #[doc(no_inline)]
@@ -329,15 +329,15 @@ impl Future for YieldNow {
 /// let a = async { 1 };
 /// let b = async { 2 };
 ///
-/// assert_eq!(future::join(a, b).await, (1, 2));
+/// assert_eq!(future::zip(a, b).await, (1, 2));
 /// # })
 /// ```
-pub fn join<F1, F2>(future1: F1, future2: F2) -> Join<F1, F2>
+pub fn zip<F1, F2>(future1: F1, future2: F2) -> Zip<F1, F2>
 where
     F1: Future,
     F2: Future,
 {
-    Join {
+    Zip {
         future1: future1,
         output1: None,
         future2: future2,
@@ -346,10 +346,10 @@ where
 }
 
 pin_project! {
-    /// Future for the [`join()`] function.
+    /// Future for the [`zip()`] function.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct Join<F1, F2>
+    pub struct Zip<F1, F2>
     where
         F1: Future,
         F2: Future,
@@ -363,7 +363,7 @@ pin_project! {
     }
 }
 
-impl<F1, F2> Future for Join<F1, F2>
+impl<F1, F2> Future for Zip<F1, F2>
 where
     F1: Future,
     F2: Future,
@@ -404,15 +404,15 @@ where
 /// let a = async { Ok::<i32, i32>(1) };
 /// let b = async { Err::<i32, i32>(2) };
 ///
-/// assert_eq!(future::try_join(a, b).await, Err(2));
+/// assert_eq!(future::try_zip(a, b).await, Err(2));
 /// # })
 /// ```
-pub fn try_join<T1, T2, E, F1, F2>(future1: F1, future2: F2) -> TryJoin<F1, F2>
+pub fn try_zip<T1, T2, E, F1, F2>(future1: F1, future2: F2) -> TryZip<F1, F2>
 where
     F1: Future<Output = Result<T1, E>>,
     F2: Future<Output = Result<T2, E>>,
 {
-    TryJoin {
+    TryZip {
         future1: future1,
         output1: None,
         future2: future2,
@@ -421,10 +421,10 @@ where
 }
 
 pin_project! {
-    /// Future for the [`try_join()`] function.
+    /// Future for the [`try_zip()`] function.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct TryJoin<F1, F2>
+    pub struct TryZip<F1, F2>
     where
         F1: Future,
         F2: Future,
@@ -438,7 +438,7 @@ pin_project! {
     }
 }
 
-impl<T1, T2, E, F1, F2> Future for TryJoin<F1, F2>
+impl<T1, T2, E, F1, F2> Future for TryZip<F1, F2>
 where
     F1: Future<Output = Result<T1, E>>,
     F2: Future<Output = Result<T2, E>>,
