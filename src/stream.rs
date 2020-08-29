@@ -19,7 +19,7 @@
 // TODO: race() that merges streams in a fair manner
 // TODO: or() that merges streams in an unfair manner
 
-// TODO: combinators: step_by(), chain(), cloned(), copied(),
+// TODO: combinators: chain(), cloned(), copied(),
 // cycle(), enumerate(), inspect(), last(), fuse(), flat_map(), flatten(),
 // peekable(),
 // min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
@@ -639,8 +639,6 @@ pub trait StreamExt: Stream {
     ///
     /// # Examples
     ///
-    /// Basic usage:
-    ///
     /// ```
     /// use futures_lite::*;
     ///
@@ -719,7 +717,8 @@ pub trait StreamExt: Stream {
     /// use futures_lite::*;
     ///
     /// # future::block_on(async {
-    /// let mut s = stream::iter(vec![1, 2, 3, 4]).take_while(|x| *x < 3);
+    /// let s = stream::iter(vec![1, 2, 3, 4]);
+    /// let mut s = s.take_while(|x| *x < 3);
     ///
     /// assert_eq!(s.next().await, Some(1));
     /// assert_eq!(s.next().await, Some(2));
@@ -734,6 +733,39 @@ pub trait StreamExt: Stream {
         TakeWhile {
             stream: self,
             predicate,
+        }
+    }
+
+    /// Yields every `step`th element.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if the `step` is 0.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![0, 1, 2, 3, 4]);
+    /// let mut s = s.step_by(2);
+    ///
+    /// assert_eq!(s.next().await, Some(0));
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, Some(4));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn step_by(self, step: usize) -> StepBy<Self>
+    where
+        Self: Sized,
+    {
+        assert!(step > 0, "`step` must be greater than zero");
+        StepBy {
+            stream: self,
+            step,
+            i: 0,
         }
     }
 
@@ -1280,6 +1312,38 @@ where
                 }
             }
             None => Poll::Ready(None),
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::step_by()`] method.
+    #[derive(Debug)]
+    pub struct StepBy<S> {
+        #[pin]
+        stream: S,
+        step: usize,
+        i: usize,
+    }
+}
+
+impl<S: Stream> Stream for StepBy<S> {
+    type Item = S::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(v) => {
+                    if *this.i == 0 {
+                        *this.i = *this.step - 1;
+                        return Poll::Ready(Some(v));
+                    } else {
+                        *this.i -= 1;
+                    }
+                }
+                None => return Poll::Ready(None),
+            }
         }
     }
 }
