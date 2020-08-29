@@ -19,8 +19,8 @@
 // TODO: race() that merges streams in a fair manner
 // TODO: or() that merges streams in an unfair manner
 
-// TODO: combinators: chain(), cloned(), copied(),
-// cycle(), enumerate(), inspect(), last(), fuse(), flat_map(), flatten(),
+// TODO: combinators: cloned(), copied(),
+// cycle(), enumerate(), inspect(), last(), flat_map(), flatten(),
 // peekable(),
 // min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
 // nth(), all(), find(), find_map(), partition(),
@@ -769,6 +769,33 @@ pub trait StreamExt: Stream {
         }
     }
 
+    /// Appends another stream to the end of this one.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s1 = stream::iter(vec![1, 2]);
+    /// let s2 = stream::iter(vec![7, 8]);
+    /// let mut s = s1.chain(s2);
+    ///
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, Some(7));
+    /// assert_eq!(s.next().await, Some(8));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn chain<U>(self, other: U) -> Chain<Self, U>
+    where
+        Self: Sized,
+        U: Stream<Item = Self::Item> + Sized,
+    {
+        Chain { first: self.fuse(), second: other.fuse() }
+    }
+
     /// Collects all items in the stream into a collection.
     ///
     /// # Examples
@@ -885,6 +912,28 @@ pub trait StreamExt: Stream {
             f,
             acc: Some(init),
         }
+    }
+
+    /// Fuses the stream so that it stops yielding items after the first [`None`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::once(1).fuse();
+    ///
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, None);
+    /// assert_eq!(s.next().await, None);
+    /// # })
+    /// ```
+    fn fuse(self) -> Fuse<Self>
+    where
+        Self: Sized,
+    {
+        Fuse { stream: self, done: false }
     }
 
     /// Boxes the stream and changes its type to `dyn Stream<Item = T> + Send`.
@@ -1046,9 +1095,7 @@ where
             match ready!(this.stream.as_mut().poll_next(cx)) {
                 Some(e) => this.collection.extend(Some(e)),
                 None => {
-                    return Poll::Ready({
-                        mem::replace(self.project().collection, Default::default())
-                    })
+                    return Poll::Ready(mem::replace(self.project().collection, Default::default()))
                 }
             }
         }
@@ -1158,6 +1205,34 @@ where
                 }
                 None => return Poll::Ready(Ok(self.acc.take().unwrap())),
             }
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::fuse()`] method.
+    #[derive(Clone, Debug)]
+    pub struct Fuse<S> {
+        #[pin]
+        stream: S,
+        done: bool,
+    }
+}
+
+impl<S: Stream> Stream for Fuse<S> {
+    type Item = S::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<S::Item>> {
+        let this = self.project();
+
+        if *this.done {
+            Poll::Ready(None)
+        } else {
+            let next = ready!(this.stream.poll_next(cx));
+            if next.is_none() {
+                *this.done = true;
+            }
+            Poll::Ready(next)
         }
     }
 }
@@ -1344,6 +1419,45 @@ impl<S: Stream> Stream for StepBy<S> {
                 }
                 None => return Poll::Ready(None),
             }
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::chain()`] method.
+    #[derive(Debug)]
+    pub struct Chain<S, U> {
+        #[pin]
+        first: Fuse<S>,
+        #[pin]
+        second: Fuse<U>,
+    }
+}
+
+impl<S: Stream, U: Stream<Item = S::Item>> Stream for Chain<S, U> {
+    type Item = S::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        if !this.first.done {
+            let next = ready!(this.first.as_mut().poll_next(cx));
+            if let Some(next) = next {
+                return Poll::Ready(Some(next));
+            }
+        }
+
+        if !this.second.done {
+            let next = ready!(this.second.as_mut().poll_next(cx));
+            if let Some(next) = next {
+                return Poll::Ready(Some(next));
+            }
+        }
+
+        if this.first.done && this.second.done {
+            Poll::Ready(None)
+        } else {
+            Poll::Pending
         }
     }
 }
