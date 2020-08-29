@@ -19,7 +19,7 @@
 // TODO: race() that merges streams in a fair manner
 // TODO: or() that merges streams in an unfair manner
 
-// TODO: combinators: cloned(), copied(),
+// TODO: combinators:
 // cycle(), enumerate(), inspect(), last(), flat_map(), flatten(),
 // peekable(),
 // min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
@@ -793,7 +793,58 @@ pub trait StreamExt: Stream {
         Self: Sized,
         U: Stream<Item = Self::Item> + Sized,
     {
-        Chain { first: self.fuse(), second: other.fuse() }
+        Chain {
+            first: self.fuse(),
+            second: other.fuse(),
+        }
+    }
+
+    /// Clones all items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![&1, &2]);
+    /// let mut s = s.cloned();
+    ///
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn cloned<'a, T>(self) -> Cloned<Self>
+    where
+        Self: Sized + Stream<Item = &'a T>,
+        T: Clone + 'a,
+    {
+        Cloned { stream: self }
+    }
+
+    /// Copies all items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![&1, &2]);
+    /// let mut s = s.copied();
+    ///
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn copied<'a, T>(self) -> Copied<Self>
+    where
+        Self: Sized + Stream<Item = &'a T>,
+        T: Copy + 'a,
+    {
+        Copied { stream: self }
     }
 
     /// Collects all items in the stream into a collection.
@@ -933,7 +984,10 @@ pub trait StreamExt: Stream {
     where
         Self: Sized,
     {
-        Fuse { stream: self, done: false }
+        Fuse {
+            stream: self,
+            done: false,
+        }
     }
 
     /// Boxes the stream and changes its type to `dyn Stream<Item = T> + Send`.
@@ -1459,5 +1513,51 @@ impl<S: Stream, U: Stream<Item = S::Item>> Stream for Chain<S, U> {
         } else {
             Poll::Pending
         }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::cloned()`] method.
+    #[derive(Debug)]
+    pub struct Cloned<S> {
+        #[pin]
+        stream: S,
+    }
+}
+
+impl<'a, S, T: 'a> Stream for Cloned<S>
+where
+    S: Stream<Item = &'a T>,
+    T: Clone,
+{
+    type Item = T;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        let next = ready!(this.stream.poll_next(cx));
+        Poll::Ready(next.cloned())
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::copied()`] method.
+    #[derive(Debug)]
+    pub struct Copied<S> {
+        #[pin]
+        stream: S,
+    }
+}
+
+impl<'a, S, T: 'a> Stream for Copied<S>
+where
+    S: Stream<Item = &'a T>,
+    T: Copy,
+{
+    type Item = T;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        let next = ready!(this.stream.poll_next(cx));
+        Poll::Ready(next.copied())
     }
 }
