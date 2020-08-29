@@ -20,7 +20,7 @@
 // TODO: or() that merges streams in an unfair manner
 
 // TODO: combinators:
-// cycle(), enumerate(), inspect(), last(), flat_map(), flatten(),
+// inspect(), last(), flat_map(), flatten(),
 // peekable(),
 // min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
 // nth(), all(), find(), find_map(), partition(),
@@ -1013,7 +1013,34 @@ pub trait StreamExt: Stream {
     where
         Self: Clone + Sized,
     {
-        Cycle { orig: self.clone(), stream: self }
+        Cycle {
+            orig: self.clone(),
+            stream: self,
+        }
+    }
+
+    /// Enumerates items, mapping them to `(index, item)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec!['a', 'b', 'c']);
+    /// let mut s = s.enumerate();
+    ///
+    /// assert_eq!(s.next().await, Some((0, 'a')));
+    /// assert_eq!(s.next().await, Some((1, 'b')));
+    /// assert_eq!(s.next().await, Some((2, 'c')));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn enumerate(self) -> Enumerate<Self>
+    where
+        Self: Sized,
+    {
+        Enumerate { stream: self, i: 0 }
     }
 
     /// Boxes the stream and changes its type to `dyn Stream<Item = T> + Send`.
@@ -1292,6 +1319,7 @@ where
 pin_project! {
     /// Stream for the [`StreamExt::fuse()`] method.
     #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Fuse<S> {
         #[pin]
         stream: S,
@@ -1412,6 +1440,7 @@ where
 pin_project! {
     /// Stream for the [`StreamExt::take()`] method.
     #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Take<S> {
         #[pin]
         stream: S,
@@ -1441,6 +1470,7 @@ impl<S: Stream> Stream for Take<S> {
 pin_project! {
     /// Stream for the [`StreamExt::take_while()`] method.
     #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct TakeWhile<S, P> {
         #[pin]
         stream: S,
@@ -1474,6 +1504,7 @@ where
 pin_project! {
     /// Stream for the [`StreamExt::step_by()`] method.
     #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct StepBy<S> {
         #[pin]
         stream: S,
@@ -1506,6 +1537,7 @@ impl<S: Stream> Stream for StepBy<S> {
 pin_project! {
     /// Stream for the [`StreamExt::chain()`] method.
     #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Chain<S, U> {
         #[pin]
         first: Fuse<S>,
@@ -1545,6 +1577,7 @@ impl<S: Stream, U: Stream<Item = S::Item>> Stream for Chain<S, U> {
 pin_project! {
     /// Stream for the [`StreamExt::cloned()`] method.
     #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Cloned<S> {
         #[pin]
         stream: S,
@@ -1568,6 +1601,7 @@ where
 pin_project! {
     /// Stream for the [`StreamExt::copied()`] method.
     #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Copied<S> {
         #[pin]
         stream: S,
@@ -1591,6 +1625,7 @@ where
 pin_project! {
     /// Stream for the [`StreamExt::cycle()`] method.
     #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Cycle<S> {
         orig: S,
         #[pin]
@@ -1612,6 +1647,37 @@ where
                 self.as_mut().project().stream.set(new);
                 self.project().stream.poll_next(cx)
             }
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::cycle()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Enumerate<S> {
+        #[pin]
+        stream: S,
+        i: usize,
+    }
+}
+
+impl<S> Stream for Enumerate<S>
+where
+    S: Stream,
+{
+    type Item = (usize, S::Item);
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+
+        match ready!(this.stream.poll_next(cx)) {
+            Some(v) => {
+                let ret = (*this.i, v);
+                *this.i += 1;
+                Poll::Ready(Some(ret))
+            }
+            None => Poll::Ready(None),
         }
     }
 }
