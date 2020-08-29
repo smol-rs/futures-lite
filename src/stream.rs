@@ -19,7 +19,7 @@
 // TODO: race() that merges streams in a fair manner
 // TODO: or() that merges streams in an unfair manner
 
-// TODO: combinators:  step_by(), chain(), cloned(), copied(),
+// TODO: combinators: step_by(), chain(), cloned(), copied(),
 // cycle(), enumerate(), inspect(), last(), fuse(), flat_map(), flatten(),
 // peekable(),
 // min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
@@ -635,7 +635,7 @@ pub trait StreamExt: Stream {
         Map { stream: self, f }
     }
 
-    /// Keeps items of the stream for which `f` returns `true`.
+    /// Keeps items of the stream for which `predicate` returns `true`.
     ///
     /// # Examples
     ///
@@ -653,14 +653,14 @@ pub trait StreamExt: Stream {
     /// assert_eq!(s.next().await, None);
     /// # });
     /// ```
-    fn filter<P>(self, f: P) -> Filter<Self, P>
+    fn filter<P>(self, predicate: P) -> Filter<Self, P>
     where
         Self: Sized,
         P: FnMut(&Self::Item) -> bool,
     {
         Filter {
             stream: self,
-            f,
+            predicate,
         }
     }
 
@@ -711,7 +711,7 @@ pub trait StreamExt: Stream {
         Take { stream: self, n }
     }
 
-    /// Creates a stream that yields elements based on a f.
+    /// Takes items while `predicate` returns `true`.
     ///
     /// # Examples
     ///
@@ -731,7 +731,10 @@ pub trait StreamExt: Stream {
         Self: Sized,
         P: FnMut(&Self::Item) -> bool,
     {
-        TakeWhile { stream: self, predicate }
+        TakeWhile {
+            stream: self,
+            predicate,
+        }
     }
 
     /// Collects all items in the stream into a collection.
@@ -1163,7 +1166,7 @@ pin_project! {
     pub struct Filter<S, P> {
         #[pin]
         stream: S,
-        f: P,
+        predicate: P,
     }
 }
 
@@ -1179,7 +1182,7 @@ where
         loop {
             match ready!(this.stream.as_mut().poll_next(cx)) {
                 None => return Poll::Ready(None),
-                Some(v) if (this.f)(&v) => return Poll::Ready(Some(v)),
+                Some(v) if (this.predicate)(&v) => return Poll::Ready(Some(v)),
                 Some(_) => {}
             }
         }

@@ -21,28 +21,20 @@
 //! ```
 
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[doc(no_inline)]
-pub use core::future::Future;
-
-#[doc(no_inline)]
-pub use futures_core::Stream;
+pub use crate::future::{Future, FutureExt};
 
 #[cfg(feature = "std")]
 #[doc(no_inline)]
-pub use futures_io::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncWrite};
+pub use crate::io::{
+    AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite,
+    AsyncWriteExt,
+};
 
 #[doc(no_inline)]
-pub use crate::future::FutureExt;
-
-#[cfg(feature = "std")]
-#[doc(no_inline)]
-pub use crate::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-
-#[doc(no_inline)]
-pub use crate::stream::StreamExt;
+pub use crate::stream::{Stream, StreamExt};
 
 pub mod future;
 pub mod stream;
