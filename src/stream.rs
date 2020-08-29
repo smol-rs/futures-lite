@@ -19,7 +19,7 @@
 // TODO: race() that merges streams in a fair manner
 // TODO: or() that merges streams in an unfair manner
 
-// TODO: combinators: take(), take_while(), step_by(), chain(), cloned(), copied(),
+// TODO: combinators: take_while(), step_by(), chain(), cloned(), copied(),
 // cycle(), enumerate(), inspect(), last(), fuse(), flat_map(), flatten(),
 // peekable(),
 // min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
@@ -689,6 +689,29 @@ pub trait StreamExt: Stream {
         FilterMap { stream: self, f }
     }
 
+    /// Takes only the first `n` items of the stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    ///
+    /// let mut s = stream::repeat(7).take(2);
+    ///
+    /// assert_eq!(s.next().await, Some(7));
+    /// assert_eq!(s.next().await, Some(7));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn take(self, n: usize) -> Take<Self>
+    where
+        Self: Sized,
+    {
+        Take { stream: self, n }
+    }
+
     /// Collects all items in the stream into a collection.
     ///
     /// # Examples
@@ -1170,6 +1193,35 @@ where
                     }
                 }
             }
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::take()`] method.
+    #[derive(Debug)]
+    pub struct Take<S> {
+        #[pin]
+        stream: S,
+        n: usize,
+    }
+}
+
+impl<S: Stream> Stream for Take<S> {
+    type Item = S::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<S::Item>> {
+        let this = self.project();
+
+        if *this.n == 0 {
+            Poll::Ready(None)
+        } else {
+            let next = ready!(this.stream.poll_next(cx));
+            match next {
+                Some(_) => *this.n -= 1,
+                None => *this.n = 0,
+            }
+            Poll::Ready(next)
         }
     }
 }
