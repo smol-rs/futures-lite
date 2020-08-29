@@ -98,7 +98,7 @@ pub fn empty<T>() -> Empty<T> {
 }
 
 /// Stream for the [`empty()`] function.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[must_use = "streams do nothing unless polled"]
 pub struct Empty<T> {
     _marker: PhantomData<T>,
@@ -140,7 +140,7 @@ pub fn iter<I: IntoIterator>(iter: I) -> Iter<I::IntoIter> {
 }
 
 /// Stream for the [`iter()`] function.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[must_use = "streams do nothing unless polled"]
 pub struct Iter<I> {
     iter: I,
@@ -180,7 +180,7 @@ pub fn once<T>(t: T) -> Once<T> {
 
 pin_project! {
     /// Stream for the [`once()`] function.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
     pub struct Once<T> {
         value: Option<T>,
@@ -223,7 +223,7 @@ pub fn pending<T>() -> Pending<T> {
 }
 
 /// Stream for the [`pending()`] function.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[must_use = "streams do nothing unless polled"]
 pub struct Pending<T> {
     _marker: PhantomData<T>,
@@ -267,6 +267,7 @@ where
 }
 
 /// Stream for the [`poll_fn()`] function.
+#[derive(Clone)]
 #[must_use = "streams do nothing unless polled"]
 pub struct PollFn<F> {
     f: F,
@@ -310,7 +311,7 @@ pub fn repeat<T: Clone>(item: T) -> Repeat<T> {
 }
 
 /// Stream for the [`repeat()`] function.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[must_use = "streams do nothing unless polled"]
 pub struct Repeat<T> {
     item: T,
@@ -352,7 +353,7 @@ where
 }
 
 /// Stream for the [`repeat_with()`] function.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[must_use = "streams do nothing unless polled"]
 pub struct RepeatWith<F> {
     f: F,
@@ -411,6 +412,7 @@ where
 
 pin_project! {
     /// Stream for the [`unfold()`] function.
+    #[derive(Clone)]
     #[must_use = "streams do nothing unless polled"]
     pub struct Unfold<T, F, Fut> {
         f: F,
@@ -499,6 +501,7 @@ where
 
 pin_project! {
     /// Stream for the [`try_unfold()`] function.
+    #[derive(Clone)]
     #[must_use = "streams do nothing unless polled"]
     pub struct TryUnfold<T, F, Fut> {
         f: F,
@@ -990,6 +993,29 @@ pub trait StreamExt: Stream {
         }
     }
 
+    /// Repeats the stream from beginning to end, forever.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![1, 2]).cycle();
+    ///
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, Some(2));
+    /// # });
+    /// ```
+    fn cycle(self) -> Cycle<Self>
+    where
+        Self: Clone + Sized,
+    {
+        Cycle { orig: self.clone(), stream: self }
+    }
+
     /// Boxes the stream and changes its type to `dyn Stream<Item = T> + Send`.
     ///
     /// # Examples
@@ -1293,7 +1319,7 @@ impl<S: Stream> Stream for Fuse<S> {
 
 pin_project! {
     /// Stream for the [`StreamExt::map()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
     pub struct Map<S, F> {
         #[pin]
@@ -1322,7 +1348,7 @@ where
 
 pin_project! {
     /// Stream for the [`StreamExt::filter()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
     pub struct Filter<S, P> {
         #[pin]
@@ -1352,7 +1378,7 @@ where
 
 pin_project! {
     /// Stream for the [`StreamExt::filter_map()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
     pub struct FilterMap<S, F> {
         #[pin]
@@ -1385,7 +1411,7 @@ where
 
 pin_project! {
     /// Stream for the [`StreamExt::take()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub struct Take<S> {
         #[pin]
         stream: S,
@@ -1414,7 +1440,7 @@ impl<S: Stream> Stream for Take<S> {
 
 pin_project! {
     /// Stream for the [`StreamExt::take_while()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub struct TakeWhile<S, P> {
         #[pin]
         stream: S,
@@ -1447,7 +1473,7 @@ where
 
 pin_project! {
     /// Stream for the [`StreamExt::step_by()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub struct StepBy<S> {
         #[pin]
         stream: S,
@@ -1479,7 +1505,7 @@ impl<S: Stream> Stream for StepBy<S> {
 
 pin_project! {
     /// Stream for the [`StreamExt::chain()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub struct Chain<S, U> {
         #[pin]
         first: Fuse<S>,
@@ -1518,7 +1544,7 @@ impl<S: Stream, U: Stream<Item = S::Item>> Stream for Chain<S, U> {
 
 pin_project! {
     /// Stream for the [`StreamExt::cloned()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub struct Cloned<S> {
         #[pin]
         stream: S,
@@ -1541,7 +1567,7 @@ where
 
 pin_project! {
     /// Stream for the [`StreamExt::copied()`] method.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub struct Copied<S> {
         #[pin]
         stream: S,
@@ -1559,5 +1585,33 @@ where
         let this = self.project();
         let next = ready!(this.stream.poll_next(cx));
         Poll::Ready(next.copied())
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::cycle()`] method.
+    #[derive(Clone, Debug)]
+    pub struct Cycle<S> {
+        orig: S,
+        #[pin]
+        stream: S,
+    }
+}
+
+impl<S> Stream for Cycle<S>
+where
+    S: Stream + Clone,
+{
+    type Item = S::Item;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match ready!(self.as_mut().project().stream.as_mut().poll_next(cx)) {
+            Some(item) => Poll::Ready(Some(item)),
+            None => {
+                let new = self.as_mut().orig.clone();
+                self.as_mut().project().stream.set(new);
+                self.project().stream.poll_next(cx)
+            }
+        }
     }
 }
