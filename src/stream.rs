@@ -20,7 +20,7 @@
 // TODO: or() that merges streams in an unfair manner
 
 // TODO: combinators:
-// inspect(), last(), flat_map(), flatten(),
+// last(), flat_map(), flatten(),
 // peekable(),
 // min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
 // nth(), all(), find(), find_map(), partition(),
@@ -1043,6 +1043,32 @@ pub trait StreamExt: Stream {
         Enumerate { stream: self, i: 0 }
     }
 
+    /// Calls a closure on each item and passes it on.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![1, 2, 3, 4, 5]);
+    ///
+    /// let sum = s
+    ///    .inspect(|x| println!("about to filter {}", x))
+    ///    .filter(|x| x % 2 == 0)
+    ///    .inspect(|x| println!("made it through filter: {}", x))
+    ///    .fold(0, |sum, i| sum + i)
+    ///    .await;
+    /// # });
+    /// ```
+    fn inspect<F>(self, f: F) -> Inspect<Self, F>
+    where
+        Self: Sized,
+        F: FnMut(&Self::Item),
+    {
+        Inspect { stream: self, f }
+    }
+
     /// Boxes the stream and changes its type to `dyn Stream<Item = T> + Send`.
     ///
     /// # Examples
@@ -1679,5 +1705,33 @@ where
             }
             None => Poll::Ready(None),
         }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::inspect()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Inspect<S, F> {
+        #[pin]
+        stream: S,
+        f: F,
+    }
+}
+
+impl<S, F> Stream for Inspect<S, F>
+where
+    S: Stream,
+    F: FnMut(&S::Item),
+{
+    type Item = S::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        let next = ready!(this.stream.as_mut().poll_next(cx));
+        if let Some(x) = &next {
+            (this.f)(x);
+        }
+        Poll::Ready(next)
     }
 }
