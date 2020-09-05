@@ -20,7 +20,6 @@
 // TODO: or() that merges streams in an unfair manner
 
 // TODO: combinators:
-// skip(), skip_while(), flat_map(), flatten(),
 // nth(), last() all(), any(), find(), find_map(), position(), partition(),
 // for_each(), try_for_each(), scan(), zip(), unzip(),
 // maybe try_next()
@@ -635,6 +634,63 @@ pub trait StreamExt: Stream {
         Map { stream: self, f }
     }
 
+    /// Maps items to streams and then concatenates them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let words = stream::iter(vec!["one", "two"]);
+    ///
+    /// let s: String = words
+    ///     .flat_map(|s| stream::iter(s.chars()))
+    ///     .collect()
+    ///     .await;
+    ///
+    /// assert_eq!(s, "onetwo");
+    /// # });
+    /// ```
+    fn flat_map<U, F>(self, f: F) -> FlatMap<Self, U, F>
+    where
+        Self: Sized,
+        U: Stream,
+        F: FnMut(Self::Item) -> U,
+    {
+        FlatMap {
+            stream: self.map(f),
+            inner_stream: None,
+        }
+    }
+
+    /// Concatenates inner streams.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s1 = stream::iter(vec![1, 2, 3]);
+    /// let s2 = stream::iter(vec![4, 5]);
+    ///
+    /// let s = stream::iter(vec![s1, s2]);
+    /// let v: Vec<_> = s.flatten().collect().await;
+    /// assert_eq!(v, [1, 2, 3, 4, 5]);
+    /// # });
+    /// ```
+    fn flatten(self) -> Flatten<Self>
+    where
+        Self: Sized,
+        Self::Item: Stream,
+    {
+        Flatten {
+            stream: self,
+            inner_stream: None,
+        }
+    }
+
     /// Keeps items of the stream for which `predicate` returns `true`.
     ///
     /// # Examples
@@ -733,6 +789,55 @@ pub trait StreamExt: Stream {
         TakeWhile {
             stream: self,
             predicate,
+        }
+    }
+
+    /// Skips the first `n` items of the stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![1, 2, 3]);
+    /// let mut s = s.skip(2);
+    ///
+    /// assert_eq!(s.next().await, Some(3));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn skip(self, n: usize) -> Skip<Self>
+    where
+        Self: Sized,
+    {
+        Skip { stream: self, n }
+    }
+
+    /// Skips items while `predicate` returns `true`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![-1, 0, 1]);
+    /// let mut s = s.skip_while(|x| x.is_negative());
+    ///
+    /// assert_eq!(s.next().await, Some(0));
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn skip_while<P>(self, predicate: P) -> SkipWhile<Self, P>
+    where
+        Self: Sized,
+        P: FnMut(&Self::Item) -> bool,
+    {
+        SkipWhile {
+            stream: self,
+            predicate: Some(predicate),
         }
     }
 
@@ -1398,6 +1503,81 @@ where
 }
 
 pin_project! {
+    /// Stream for the [`StreamExt::flat_map()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct FlatMap<S, U, F> {
+        #[pin]
+        stream: Map<S, F>,
+        #[pin]
+        inner_stream: Option<U>,
+    }
+}
+
+impl<S, U, F> Stream for FlatMap<S, U, F>
+where
+    S: Stream,
+    U: Stream,
+    F: FnMut(S::Item) -> U,
+{
+    type Item = U::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            if let Some(inner) = this.inner_stream.as_mut().as_pin_mut() {
+                match ready!(inner.poll_next(cx)) {
+                    Some(item) => return Poll::Ready(Some(item)),
+                    None => this.inner_stream.set(None),
+                }
+            }
+
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(stream) => this.inner_stream.set(Some(stream)),
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::flat_map()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Flatten<S: Stream> {
+        #[pin]
+        stream: S,
+        #[pin]
+        inner_stream: Option<S::Item>,
+    }
+}
+
+impl<S, U> Stream for Flatten<S>
+where
+    S: Stream<Item = U>,
+    U: Stream,
+{
+    type Item = U::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            if let Some(inner) = this.inner_stream.as_mut().as_pin_mut() {
+                match ready!(inner.poll_next(cx)) {
+                    Some(item) => return Poll::Ready(Some(item)),
+                    None => this.inner_stream.set(None),
+                }
+            }
+
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(inner) => this.inner_stream.set(Some(inner)),
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+pin_project! {
     /// Stream for the [`StreamExt::filter()`] method.
     #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
@@ -1520,6 +1700,71 @@ where
                 }
             }
             None => Poll::Ready(None),
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::skip()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Skip<S> {
+        #[pin]
+        stream: S,
+        n: usize,
+    }
+}
+
+impl<S: Stream> Stream for Skip<S> {
+    type Item = S::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(v) => match *this.n {
+                    0 => return Poll::Ready(Some(v)),
+                    _ => *this.n -= 1,
+                },
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::skip_while()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct SkipWhile<S, P> {
+        #[pin]
+        stream: S,
+        predicate: Option<P>,
+    }
+}
+
+impl<S, P> Stream for SkipWhile<S, P>
+where
+    S: Stream,
+    P: FnMut(&S::Item) -> bool,
+{
+    type Item = S::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(v) => match this.predicate {
+                    Some(p) => {
+                        if !p(&v) {
+                            *this.predicate = None;
+                            return Poll::Ready(Some(v));
+                        }
+                    }
+                    None => return Poll::Ready(Some(v)),
+                },
+                None => return Poll::Ready(None),
+            }
         }
     }
 }
