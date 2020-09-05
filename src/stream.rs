@@ -20,8 +20,8 @@
 // TODO: or() that merges streams in an unfair manner
 
 // TODO: combinators:
-// nth(), last() all(), any(), find(), find_map(), position(), partition(),
-// for_each(), try_for_each(), scan(), zip(), unzip(),
+// nth(), last(), all(), any(), find(), find_map(), position(), partition(),
+// for_each(), try_for_each(), zip(), unzip(),
 // maybe try_next()
 
 use core::fmt;
@@ -1004,8 +1004,8 @@ pub trait StreamExt: Stream {
 
     /// Accumulates a computation over the stream.
     ///
-    /// The computation begins with the accumulator value set to `init` then applies `f` to the
-    /// accumulator and each item in the stream. The final accumulator value is returned.
+    /// The computation begins with the accumulator value set to `init`, and then applies `f` to
+    /// the accumulator and each item in the stream. The final accumulator value is returned.
     ///
     /// # Examples
     ///
@@ -1033,8 +1033,8 @@ pub trait StreamExt: Stream {
 
     /// Accumulates a fallible computation over the stream.
     ///
-    /// The computation begins with the accumulator value set to `init` then applies `f` to the
-    /// accumulator and each item in the stream. The final accumulator value is returned, or an
+    /// The computation begins with the accumulator value set to `init`, and then applies `f` to
+    /// the accumulator and each item in the stream. The final accumulator value is returned, or an
     /// error if `f` failed the computation.
     ///
     /// # Examples
@@ -1067,6 +1067,40 @@ pub trait StreamExt: Stream {
             stream: self,
             f,
             acc: Some(init),
+        }
+    }
+
+    /// Maps items of the stream to new values using a state value and a closure.
+    ///
+    /// Scanning begins with the inital state set to `initial_state`, and then applies `f` to the
+    /// state and each item in the stream. The stream stops when `f` returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![1, 2, 3]);
+    /// let mut s = s.scan(1, |state, x| {
+    ///     *state = *state * x;
+    ///     Some(-*state)
+    /// });
+    ///
+    /// assert_eq!(s.next().await, Some(-1));
+    /// assert_eq!(s.next().await, Some(-2));
+    /// assert_eq!(s.next().await, Some(-6));
+    /// assert_eq!(s.next().await, None);
+    /// # })
+    /// ```
+    fn scan<St, B, F>(self, initial_state: St, f: F) -> Scan<Self, St, F>
+    where
+        Self: Sized,
+        F: FnMut(&mut St, Self::Item) -> Option<B>,
+    {
+        Scan {
+            stream: self,
+            state_f: (initial_state, f),
         }
     }
 
@@ -1441,6 +1475,35 @@ where
                 None => return Poll::Ready(Ok(self.acc.take().unwrap())),
             }
         }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::scan()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Scan<S, St, F> {
+        #[pin]
+        stream: S,
+        state_f: (St, F),
+    }
+}
+
+impl<S, St, F, B> Stream for Scan<S, St, F>
+where
+    S: Stream,
+    F: FnMut(&mut St, S::Item) -> Option<B>,
+{
+    type Item = B;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<B>> {
+        let mut this = self.project();
+        this.stream.as_mut().poll_next(cx).map(|item| {
+            item.and_then(|item| {
+                let (state, f) = this.state_f;
+                f(state, item)
+            })
+        })
     }
 }
 
