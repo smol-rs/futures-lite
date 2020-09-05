@@ -34,13 +34,13 @@ use alloc::boxed::Box;
 use core::task::{Context, Poll};
 
 #[cfg(feature = "std")]
-use parking::Parker;
-#[cfg(feature = "std")]
-use waker_fn::waker_fn;
+use core::cell::RefCell;
 #[cfg(feature = "std")]
 use core::task::{Context, Poll, Waker};
 #[cfg(feature = "std")]
-use core::cell::RefCell;
+use parking::Parker;
+#[cfg(feature = "std")]
+use waker_fn::waker_fn;
 
 #[cfg(feature = "std")]
 use crate::pin;
@@ -606,7 +606,7 @@ pub trait FutureExt: Future {
         }
     }
 
-    /// Boxes the future and changes its type to `dyn Future<Output = T> + Send`.
+    /// Boxes the future and changes its type to `dyn Future + Send + 'a`.
     ///
     /// # Examples
     ///
@@ -622,14 +622,14 @@ pub trait FutureExt: Future {
     /// let futures = vec![a.boxed(), b.boxed()];
     /// # })
     /// ```
-    fn boxed(self) -> Boxed<Self::Output>
+    fn boxed<'a>(self) -> Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>
     where
-        Self: Sized + Send + 'static,
+        Self: Sized + Send + 'a,
     {
         Box::pin(self)
     }
 
-    /// Boxes the future and changes its type to `dyn Future<Output = T>`.
+    /// Boxes the future and changes its type to `dyn Future + 'a`.
     ///
     /// # Examples
     ///
@@ -645,9 +645,9 @@ pub trait FutureExt: Future {
     /// let futures = vec![a.boxed_local(), b.boxed_local()];
     /// # })
     /// ```
-    fn boxed_local(self) -> BoxedLocal<Self::Output>
+    fn boxed_local<'a>(self) -> Pin<Box<dyn Future<Output = Self::Output> + 'a>>
     where
-        Self: Sized + 'static,
+        Self: Sized + 'a,
     {
         Box::pin(self)
     }

@@ -1066,7 +1066,7 @@ pub trait StreamExt: Stream {
         Inspect { stream: self, f }
     }
 
-    /// Boxes the stream and changes its type to `dyn Stream<Item = T> + Send`.
+    /// Boxes the stream and changes its type to `dyn Stream + Send + 'a`.
     ///
     /// # Examples
     ///
@@ -1082,14 +1082,14 @@ pub trait StreamExt: Stream {
     /// let streams = vec![a.boxed(), b.boxed()];
     /// # })
     /// ```
-    fn boxed(self) -> Boxed<Self::Item>
+    fn boxed<'a>(self) -> Pin<Box<dyn Stream<Item = Self::Item> + Send + 'a>>
     where
-        Self: Sized + Send + 'static,
+        Self: Sized + Send + 'a,
     {
         Box::pin(self)
     }
 
-    /// Boxes the stream and changes its type to `dyn Stream<Item = T>`.
+    /// Boxes the stream and changes its type to `dyn Stream + 'a`.
     ///
     /// # Examples
     ///
@@ -1105,9 +1105,9 @@ pub trait StreamExt: Stream {
     /// let streams = vec![a.boxed_local(), b.boxed_local()];
     /// # })
     /// ```
-    fn boxed_local(self) -> BoxedLocal<Self::Item>
+    fn boxed_local<'a>(self) -> Pin<Box<dyn Stream<Item = Self::Item> + 'a>>
     where
-        Self: Sized + 'static,
+        Self: Sized + 'a,
     {
         Box::pin(self)
     }
