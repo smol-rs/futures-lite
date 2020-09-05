@@ -1,3 +1,18 @@
+# Version 1.1.0
+
+- Add `StreamExt::take()`.
+- Add `StreamExt::take_while()`.
+- Add `StreamExt::step_by()`.
+- Add `StreamExt::fuse()`.
+- Add `StreamExt::chain()`.
+- Add `StreamExt::cloned()`.
+- Add `StreamExt::copied()`.
+- Add `StreamExt::cycle()`.
+- Add `StreamExt::enumeraate()`.
+- Add `StreamExt::inspect()`.
+- Parametrize `FutureExt::boxed()` and `FutureExt::boxed_local()` over a lifetime.
+- Parametrize `StreamExt::boxed()` and `StreamExt::boxed_local()` over a lifetime.
+
 # Version 1.0.0
 
 - Add `StreamExt::map()`.
