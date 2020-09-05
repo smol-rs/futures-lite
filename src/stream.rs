@@ -20,13 +20,10 @@
 // TODO: or() that merges streams in an unfair manner
 
 // TODO: combinators:
-// last(), flat_map(), flatten(),
-// peekable(),
-// min_by_key(), max_by_key(), min_by(), max_by(), min(), max(),
-// nth(), all(), find(), find_map(), partition(),
-// for_each(), try_for_each(), any(), scan(), skip(), skip_while(), zip(), unzip(), position(),
-// cmp(), partial_cmp(), ne(), ge(), eq(), gt(), le(), lt(),
-// sum(), product()
+// skip(), skip_while(), flat_map(), flatten(),
+// nth(), last() all(), any(), find(), find_map(), position(), partition(),
+// for_each(), try_for_each(), scan(), zip(), unzip(),
+// maybe try_next()
 
 use core::fmt;
 use core::future::Future;
