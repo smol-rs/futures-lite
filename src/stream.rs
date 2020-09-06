@@ -19,10 +19,6 @@
 // TODO: race() that merges streams in a fair manner
 // TODO: or() that merges streams in an unfair manner
 
-// TODO: combinators:
-// for_each(), try_for_each(), parition(), zip(), unzip(),
-// maybe try_next()
-
 use core::fmt;
 use core::future::Future;
 use core::marker::PhantomData;
@@ -583,6 +579,34 @@ pub trait StreamExt: Stream {
         NextFuture { stream: self }
     }
 
+    /// Retrieves the next item in the stream.
+    ///
+    /// This is similar to the [`next()`][`StreamExt::next()`] method, but returns
+    /// `Result<Option<T>, E>` rather than `Option<Result<T, E>>`.
+    ///
+    /// Note that `s.try_next().await` is equivalent to `s.next().await.transpose()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![Ok(1), Ok(2), Err("error")]);
+    ///
+    /// assert_eq!(s.try_next().await, Ok(Some(1)));
+    /// assert_eq!(s.try_next().await, Ok(Some(2)));
+    /// assert_eq!(s.try_next().await, Err("error"));
+    /// assert_eq!(s.try_next().await, Ok(None));
+    /// # });
+    /// ```
+    fn try_next<T, E>(&mut self) -> TryNextFuture<'_, Self>
+    where
+        Self: Stream<Item = Result<T, E>> + Unpin,
+    {
+        TryNextFuture { stream: self }
+    }
+
     /// Counts the number of items in the stream.
     ///
     /// # Examples
@@ -965,9 +989,10 @@ pub trait StreamExt: Stream {
     /// assert_eq!(items, [1, 2, 3]);
     /// # });
     /// ```
-    fn collect<C: Default + Extend<Self::Item>>(self) -> CollectFuture<Self, C>
+    fn collect<C>(self) -> CollectFuture<Self, C>
     where
         Self: Sized,
+        C: Default + Extend<Self::Item>,
     {
         CollectFuture {
             stream: self,
@@ -990,14 +1015,43 @@ pub trait StreamExt: Stream {
     /// assert_eq!(res, Ok(vec![1, 2, 3]));
     /// # })
     /// ```
-    fn try_collect<T, C: Default + Extend<T>>(self) -> TryCollectFuture<Self, C>
+    fn try_collect<T, E, C>(self) -> TryCollectFuture<Self, C>
     where
-        Self: Sized,
-        Self::Item: try_hack::Result<Ok = T>,
+        Self: Stream<Item = Result<T, E>> + Sized,
+        C: Default + Extend<T>,
     {
         TryCollectFuture {
             stream: self,
             items: Default::default(),
+        }
+    }
+
+    /// Partitions items into those for which `predicate` is `true` and those for which it is
+    /// `false`, and then collects them into two collections.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![1, 2, 3]);
+    /// let (even, odd): (Vec<_>, Vec<_>) = s.partition(|&n| n % 2 == 0).await;
+    ///
+    /// assert_eq!(even, &[2]);
+    /// assert_eq!(odd, &[1, 3]);
+    /// # })
+    /// ```
+    fn partition<B, P>(self, predicate: P) -> PartitionFuture<Self, P, B>
+    where
+        Self: Sized,
+        B: Default + Extend<Self::Item>,
+        P: FnMut(&Self::Item) -> bool,
+    {
+        PartitionFuture {
+            stream: self,
+            predicate,
+            res: Some(Default::default()),
         }
     }
 
@@ -1058,8 +1112,7 @@ pub trait StreamExt: Stream {
     /// ```
     fn try_fold<T, E, F, B>(&mut self, init: B, f: F) -> TryFoldFuture<'_, Self, F, B>
     where
-        Self: Unpin + Sized,
-        Self::Item: try_hack::Result<Ok = T, Err = E>,
+        Self: Stream<Item = Result<T, E>> + Unpin + Sized,
         F: FnMut(B, T) -> Result<B, E>,
     {
         TryFoldFuture {
@@ -1389,6 +1442,119 @@ pub trait StreamExt: Stream {
         }
     }
 
+    /// Calls a closure on each item of the stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![1, 2, 3]);
+    /// s.for_each(|s| println!("{}", s)).await;
+    /// # });
+    /// ```
+    fn for_each<F>(self, f: F) -> ForEachFuture<Self, F>
+    where
+        Self: Sized,
+        F: FnMut(Self::Item),
+    {
+        ForEachFuture { stream: self, f }
+    }
+
+    /// Calls a fallible closure on each item of the stream, stopping on first error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![0, 1, 2, 3]);
+    ///
+    /// let mut v = vec![];
+    /// let res = s
+    ///     .try_for_each(|n| {
+    ///         if n < 2 {
+    ///             v.push(n);
+    ///             Ok(())
+    ///         } else {
+    ///             Err("too big")
+    ///         }
+    ///     })
+    ///     .await;
+    ///
+    /// assert_eq!(v, &[0, 1]);
+    /// assert_eq!(res, Err("too big"));
+    /// # });
+    /// ```
+    fn try_for_each<F, E>(&mut self, f: F) -> TryForEachFuture<'_, Self, F>
+    where
+        Self: Unpin,
+        F: FnMut(Self::Item) -> Result<(), E>,
+    {
+        TryForEachFuture { stream: self, f }
+    }
+
+    /// Zips up two streams into a single stream of pairs.
+    ///
+    /// The stream of pairs stops when either of the original two streams is exhausted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let l = stream::iter(vec![1, 2, 3]);
+    /// let r = stream::iter(vec![4, 5, 6, 7]);
+    /// let mut s = l.zip(r);
+    ///
+    /// assert_eq!(s.next().await, Some((1, 4)));
+    /// assert_eq!(s.next().await, Some((2, 5)));
+    /// assert_eq!(s.next().await, Some((3, 6)));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn zip<U>(self, other: U) -> Zip<Self, U>
+    where
+        Self: Sized,
+        U: Stream,
+    {
+        Zip {
+            item_slot: None,
+            first: self,
+            second: other,
+        }
+    }
+
+    /// Collects a stream of pairs into a pair of collections.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![(1, 2), (3, 4)]);
+    /// let (left, right): (Vec<_>, Vec<_>) = s.unzip().await;
+    ///
+    /// assert_eq!(left, [1, 3]);
+    /// assert_eq!(right, [2, 4]);
+    /// # });
+    /// ```
+    fn unzip<A, B, FromA, FromB>(self) -> UnzipFuture<Self, FromA, FromB>
+    where
+        FromA: Default + Extend<A>,
+        FromB: Default + Extend<B>,
+        Self: Stream<Item = (A, B)> + Sized,
+    {
+        UnzipFuture {
+            stream: self,
+            res: Some(Default::default()),
+        }
+    }
+
     /// Boxes the stream and changes its type to `dyn Stream + Send + 'a`.
     ///
     /// # Examples
@@ -1436,26 +1602,7 @@ pub trait StreamExt: Stream {
     }
 }
 
-impl<S: ?Sized> StreamExt for S where S: Stream {}
-
-/// The `Try` trait is not stable yet, so we use this hack to constrain types to `Result<T, E>`.
-mod try_hack {
-    pub trait Result {
-        type Ok;
-        type Err;
-
-        fn into_result(self) -> core::result::Result<Self::Ok, Self::Err>;
-    }
-
-    impl<T, E> Result for core::result::Result<T, E> {
-        type Ok = T;
-        type Err = E;
-
-        fn into_result(self) -> core::result::Result<T, E> {
-            self
-        }
-    }
-}
+impl<S: Stream + ?Sized> StreamExt for S {}
 
 /// Type alias for `Pin<Box<dyn Stream<Item = T> + Send + 'static>>`.
 ///
@@ -1486,8 +1633,8 @@ pub type BoxedLocal<T> = Pin<Box<dyn Stream<Item = T> + 'static>>;
 /// Future for the [`StreamExt::next()`] method.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct NextFuture<'a, T: ?Sized> {
-    stream: &'a mut T,
+pub struct NextFuture<'a, S: ?Sized> {
+    stream: &'a mut S,
 }
 
 impl<S: Unpin + ?Sized> Unpin for NextFuture<'_, S> {}
@@ -1497,6 +1644,27 @@ impl<S: Stream + Unpin + ?Sized> Future for NextFuture<'_, S> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut *self.stream).poll_next(cx)
+    }
+}
+
+/// Future for the [`StreamExt::try_next()`] method.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct TryNextFuture<'a, S: ?Sized> {
+    stream: &'a mut S,
+}
+
+impl<S: Unpin + ?Sized> Unpin for TryNextFuture<'_, S> {}
+
+impl<T, E, S> Future for TryNextFuture<'_, S>
+where
+    S: Stream<Item = Result<T, E>> + Unpin + ?Sized,
+{
+    type Output = Result<Option<T>, E>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let res = ready!(Pin::new(&mut *self.stream).poll_next(cx));
+        Poll::Ready(res.transpose())
     }
 }
 
@@ -1585,6 +1753,44 @@ where
 }
 
 pin_project! {
+    /// Future for the [`StreamExt::partition()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct PartitionFuture<S, P, B> {
+        #[pin]
+        stream: S,
+        predicate: P,
+        res: Option<(B, B)>,
+    }
+}
+
+impl<S, P, B> Future for PartitionFuture<S, P, B>
+where
+    S: Stream + Sized,
+    P: FnMut(&S::Item) -> bool,
+    B: Default + Extend<S::Item>,
+{
+    type Output = (B, B);
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(v) => {
+                    let res = this.res.as_mut().unwrap();
+                    if (this.predicate)(&v) {
+                        res.0.extend(Some(v))
+                    } else {
+                        res.1.extend(Some(v))
+                    }
+                }
+                None => return Poll::Ready(this.res.take().unwrap()),
+            }
+        }
+    }
+}
+
+pin_project! {
     /// Future for the [`StreamExt::fold()`] method.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -1631,8 +1837,7 @@ impl<'a, S, F, B> Unpin for TryFoldFuture<'a, S, F, B> {}
 
 impl<'a, T, E, S, F, B> Future for TryFoldFuture<'a, S, F, B>
 where
-    S: Stream + Unpin,
-    S::Item: try_hack::Result<Ok = T, Err = E>,
+    S: Stream<Item = Result<T, E>> + Unpin,
     F: FnMut(B, T) -> Result<B, E>,
 {
     type Output = Result<B, E>;
@@ -1640,20 +1845,14 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
             match ready!(Pin::new(&mut self.stream).poll_next(cx)) {
-                Some(res) => {
-                    use try_hack::Result as _;
+                Some(Err(e)) => return Poll::Ready(Err(e)),
+                Some(Ok(t)) => {
+                    let old = self.acc.take().unwrap();
+                    let new = (&mut self.f)(old, t);
 
-                    match res.into_result() {
+                    match new {
+                        Ok(t) => self.acc = Some(t),
                         Err(e) => return Poll::Ready(Err(e)),
-                        Ok(t) => {
-                            let old = self.acc.take().unwrap();
-                            let new = (&mut self.f)(old, t);
-
-                            match new {
-                                Ok(t) => self.acc = Some(t),
-                                Err(e) => return Poll::Ready(Err(e)),
-                            }
-                        }
                     }
                 }
                 None => return Poll::Ready(Ok(self.acc.take().unwrap())),
@@ -2347,7 +2546,7 @@ pub struct PositionFuture<'a, S: ?Sized, P> {
     index: usize,
 }
 
-impl<'a, S: ?Sized, P> Unpin for PositionFuture<'a, S, P> {}
+impl<'a, S: Unpin + ?Sized, P> Unpin for PositionFuture<'a, S, P> {}
 
 impl<'a, S, P> Future for PositionFuture<'a, S, P>
 where
@@ -2429,6 +2628,130 @@ where
                     }
                 }
                 None => return Poll::Ready(false),
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Future for the [`StreamExt::for_each()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct ForEachFuture<S, F> {
+        #[pin]
+        stream: S,
+        f: F,
+    }
+}
+
+impl<S, F> Future for ForEachFuture<S, F>
+where
+    S: Stream,
+    F: FnMut(S::Item),
+{
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(v) => (this.f)(v),
+                None => return Poll::Ready(()),
+            }
+        }
+    }
+}
+
+/// Future for the [`StreamExt::try_for_each()`] method.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct TryForEachFuture<'a, S: ?Sized, F> {
+    stream: &'a mut S,
+    f: F,
+}
+
+impl<'a, S: Unpin + ?Sized, F> Unpin for TryForEachFuture<'a, S, F> {}
+
+impl<'a, S, F, E> Future for TryForEachFuture<'a, S, F>
+where
+    S: Stream + Unpin + ?Sized,
+    F: FnMut(S::Item) -> Result<(), E>,
+{
+    type Output = Result<(), E>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(Pin::new(&mut self.stream).poll_next(cx)) {
+                None => return Poll::Ready(Ok(())),
+                Some(v) => (&mut self.f)(v)?,
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::zip()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Zip<A: Stream, B> {
+        item_slot: Option<A::Item>,
+        #[pin]
+        first: A,
+        #[pin]
+        second: B,
+    }
+}
+
+impl<A: Stream, B: Stream> Stream for Zip<A, B> {
+    type Item = (A::Item, B::Item);
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+
+        if this.item_slot.is_none() {
+            match this.first.poll_next(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(None) => return Poll::Ready(None),
+                Poll::Ready(Some(item)) => *this.item_slot = Some(item),
+            }
+        }
+
+        let second_item = ready!(this.second.poll_next(cx));
+        let first_item = this.item_slot.take().unwrap();
+        Poll::Ready(second_item.map(|second_item| (first_item, second_item)))
+    }
+}
+
+pin_project! {
+    /// Future for the [`StreamExt::unzip()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct UnzipFuture<S, FromA, FromB> {
+        #[pin]
+        stream: S,
+        res: Option<(FromA, FromB)>,
+    }
+}
+
+impl<S, A, B, FromA, FromB> Future for UnzipFuture<S, FromA, FromB>
+where
+    S: Stream<Item = (A, B)>,
+    FromA: Default + Extend<A>,
+    FromB: Default + Extend<B>,
+{
+    type Output = (FromA, FromB);
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some((a, b)) => {
+                    let res = this.res.as_mut().unwrap();
+                    res.0.extend(Some(a));
+                    res.1.extend(Some(b));
+                }
+                None => return Poll::Ready(this.res.take().unwrap()),
             }
         }
     }

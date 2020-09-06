@@ -653,7 +653,7 @@ pub trait FutureExt: Future {
     }
 }
 
-impl<F: ?Sized> FutureExt for F where F: Future {}
+impl<F: Future + ?Sized> FutureExt for F {}
 
 pin_project! {
     /// Future for the [`or()`][`FutureExt::or()`] method.
