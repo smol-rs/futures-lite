@@ -548,7 +548,7 @@ where
     }
 }
 
-/// Type alias for `Pin<Box<dyn Future<Output = T> + Send>>`.
+/// Type alias for `Pin<Box<dyn Future<Output = T> + Send + 'static>>`.
 ///
 /// # Examples
 ///
@@ -559,9 +559,9 @@ where
 /// let f1: future::Boxed<i32> = async { 1 + 2 }.boxed();
 /// let f2: future::Boxed<i32> = Box::pin(async { 1 + 2 });
 /// ```
-pub type Boxed<T> = Pin<Box<dyn Future<Output = T> + Send>>;
+pub type Boxed<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
-/// Type alias for `Pin<Box<dyn Future<Output = T>>>`.
+/// Type alias for `Pin<Box<dyn Future<Output = T> + 'static>>`.
 ///
 /// # Examples
 ///
@@ -572,7 +572,7 @@ pub type Boxed<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 /// let f1: future::BoxedLocal<i32> = async { 1 + 2 }.boxed_local();
 /// let f2: future::BoxedLocal<i32> = Box::pin(async { 1 + 2 });
 /// ```
-pub type BoxedLocal<T> = Pin<Box<dyn Future<Output = T>>>;
+pub type BoxedLocal<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
 
 /// Extension trait for [`Future`].
 pub trait FutureExt: Future {
