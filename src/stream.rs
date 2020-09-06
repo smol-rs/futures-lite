@@ -845,7 +845,7 @@ pub trait StreamExt: Stream {
     /// use futures_lite::*;
     ///
     /// # future::block_on(async {
-    /// let s = stream::iter(vec![-1, 0, 1]);
+    /// let s = stream::iter(vec![-1i32, 0, 1]);
     /// let mut s = s.skip_while(|x| x.is_negative());
     ///
     /// assert_eq!(s.next().await, Some(0));
