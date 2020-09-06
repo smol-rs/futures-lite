@@ -499,6 +499,7 @@ where
 /// let res = race(ready(1), ready(2)).await;
 /// # })
 /// ```
+#[cfg(feature = "std")]
 pub fn race<T, F1, F2>(future1: F1, future2: F2) -> Race<F1, F2>
 where
     F1: Future<Output = T>,
@@ -507,6 +508,7 @@ where
     Race { future1, future2 }
 }
 
+#[cfg(feature = "std")]
 pin_project! {
     /// Future for the [`race()`] function.
     #[derive(Debug)]
@@ -519,6 +521,7 @@ pin_project! {
     }
 }
 
+#[cfg(feature = "std")]
 impl<T, F1, F2> Future for Race<F1, F2>
 where
     F1: Future<Output = T>,

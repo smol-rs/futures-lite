@@ -42,7 +42,7 @@ pub mod stream;
 #[cfg(feature = "std")]
 pub mod io;
 
-/// Unwraps `Poll<T>` or returns [`Pending`][`std::task::Poll::Pending`].
+/// Unwraps `Poll<T>` or returns [`Pending`][`core::task::Poll::Pending`].
 ///
 /// # Examples
 ///
