@@ -1,3 +1,25 @@
+# Version 1.2.0
+
+- Fix compilation errors on `#![no_std]` systems.
+- Add `StreamExt::try_next()`.
+- Add `StreamExt::partition()`.
+- Add `StreamExt::for_each()`.
+- Add `StreamExt::try_for_each()`.
+- Add `StreamExt::zip()`.
+- Add `StreamExt::unzip()`.
+- Add `StreamExt::nth()`.
+- Add `StreamExt::last()`.
+- Add `StreamExt::find()`.
+- Add `StreamExt::find_map()`.
+- Add `StreamExt::position()`.
+- Add `StreamExt::all()`.
+- Add `StreamExt::any()`.
+- Add `StreamExt::scan()`.
+- Add `StreamExt::flat_map()`.
+- Add `StreamExt::flatten()`.
+- Add `StreamExt::skip()`.
+- Add `StreamExt::skip_while()`.
+
 # Version 1.1.0
 
 - Add `StreamExt::take()`.
