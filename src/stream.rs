@@ -20,8 +20,7 @@
 // TODO: or() that merges streams in an unfair manner
 
 // TODO: combinators:
-// nth(), last(), all(), any(), find(), find_map(), position(), partition(),
-// for_each(), try_for_each(), zip(), unzip(),
+// for_each(), try_for_each(), parition(), zip(), unzip(),
 // maybe try_next()
 
 use core::fmt;
@@ -584,7 +583,7 @@ pub trait StreamExt: Stream {
         NextFuture { stream: self }
     }
 
-    /// Counts the number of elements in the stream.
+    /// Counts the number of items in the stream.
     ///
     /// # Examples
     ///
@@ -841,7 +840,7 @@ pub trait StreamExt: Stream {
         }
     }
 
-    /// Yields every `step`th element.
+    /// Yields every `step`th item.
     ///
     /// # Panics
     ///
@@ -922,7 +921,7 @@ pub trait StreamExt: Stream {
     /// ```
     fn cloned<'a, T>(self) -> Cloned<Self>
     where
-        Self: Sized + Stream<Item = &'a T>,
+        Self: Stream<Item = &'a T> + Sized,
         T: Clone + 'a,
     {
         Cloned { stream: self }
@@ -946,7 +945,7 @@ pub trait StreamExt: Stream {
     /// ```
     fn copied<'a, T>(self) -> Copied<Self>
     where
-        Self: Sized + Stream<Item = &'a T>,
+        Self: Stream<Item = &'a T> + Sized,
         T: Copy + 'a,
     {
         Copied { stream: self }
@@ -1205,6 +1204,191 @@ pub trait StreamExt: Stream {
         Inspect { stream: self, f }
     }
 
+    /// Gets the `n`th item of the stream.
+    ///
+    /// In the end, `n+1` items of the stream will be consumed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    ///
+    /// assert_eq!(s.nth(2).await, Some(2));
+    /// assert_eq!(s.nth(2).await, Some(5));
+    /// assert_eq!(s.nth(2).await, None);
+    /// # });
+    /// ```
+    fn nth(&mut self, n: usize) -> NthFuture<'_, Self>
+    where
+        Self: Unpin,
+    {
+        NthFuture { stream: self, n }
+    }
+
+    /// Returns the last item in the stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let s = stream::iter(vec![1, 2, 3, 4]);
+    /// assert_eq!(s.last().await, Some(4));
+    ///
+    /// let s = stream::empty::<i32>();
+    /// assert_eq!(s.last().await, None);
+    /// # });
+    /// ```
+    fn last(self) -> LastFuture<Self>
+    where
+        Self: Sized,
+    {
+        LastFuture {
+            stream: self,
+            last: None,
+        }
+    }
+
+    /// Finds the first item of the stream for which `predicate` returns `true`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![11, 12, 13, 14]);
+    ///
+    /// assert_eq!(s.find(|x| *x % 2 == 0).await, Some(12));
+    /// assert_eq!(s.next().await, Some(13));
+    /// # });
+    /// ```
+    fn find<P>(&mut self, predicate: P) -> FindFuture<'_, Self, P>
+    where
+        Self: Unpin,
+        P: FnMut(&Self::Item) -> bool,
+    {
+        FindFuture {
+            stream: self,
+            predicate,
+        }
+    }
+
+    /// Applies a closure to items in the stream and returns the first [`Some`] result.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec!["lol", "NaN", "2", "5"]);
+    /// let number = s.find_map(|s| s.parse().ok()).await;
+    ///
+    /// assert_eq!(number, Some(2));
+    /// # });
+    /// ```
+    fn find_map<F, B>(&mut self, f: F) -> FindMapFuture<'_, Self, F>
+    where
+        Self: Unpin,
+        F: FnMut(Self::Item) -> Option<B>,
+    {
+        FindMapFuture { stream: self, f }
+    }
+
+    /// Finds the index of the first item of the stream for which `predicate` returns `true`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![0, 1, 2, 3, 4, 5]);
+    ///
+    /// assert_eq!(s.position(|x| x == 2).await, Some(2));
+    /// assert_eq!(s.position(|x| x == 3).await, Some(0));
+    /// assert_eq!(s.position(|x| x == 9).await, None);
+    /// # });
+    /// ```
+    fn position<P>(&mut self, predicate: P) -> PositionFuture<'_, Self, P>
+    where
+        Self: Unpin,
+        P: FnMut(Self::Item) -> bool,
+    {
+        PositionFuture {
+            stream: self,
+            predicate,
+            index: 0,
+        }
+    }
+
+    /// Tests if `predicate` returns `true` for all items in the stream.
+    ///
+    /// The result is `true` for an empty stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![1, 2, 3]);
+    /// assert!(!s.all(|x| x % 2 == 0).await);
+    ///
+    /// let mut s = stream::iter(vec![2, 4, 6, 8]);
+    /// assert!(s.all(|x| x % 2 == 0).await);
+    ///
+    /// let mut s = stream::empty::<i32>();
+    /// assert!(s.all(|x| x % 2 == 0).await);
+    /// # });
+    /// ```
+    fn all<P>(&mut self, predicate: P) -> AllFuture<'_, Self, P>
+    where
+        Self: Unpin,
+        P: FnMut(Self::Item) -> bool,
+    {
+        AllFuture {
+            stream: self,
+            predicate,
+        }
+    }
+
+    /// Tests if `predicate` returns `true` for any item in the stream.
+    ///
+    /// The result is `false` for an empty stream.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # future::block_on(async {
+    /// let mut s = stream::iter(vec![1, 3, 5, 7]);
+    /// assert!(!s.any(|x| x % 2 == 0).await);
+    ///
+    /// let mut s = stream::iter(vec![1, 2, 3]);
+    /// assert!(s.any(|x| x % 2 == 0).await);
+    ///
+    /// let mut s = stream::empty::<i32>();
+    /// assert!(!s.any(|x| x % 2 == 0).await);
+    /// # });
+    /// ```
+    fn any<P>(&mut self, predicate: P) -> AnyFuture<'_, Self, P>
+    where
+        Self: Unpin,
+        P: FnMut(Self::Item) -> bool,
+    {
+        AnyFuture {
+            stream: self,
+            predicate,
+        }
+    }
+
     /// Boxes the stream and changes its type to `dyn Stream + Send + 'a`.
     ///
     /// # Examples
@@ -1223,7 +1407,7 @@ pub trait StreamExt: Stream {
     /// ```
     fn boxed<'a>(self) -> Pin<Box<dyn Stream<Item = Self::Item> + Send + 'a>>
     where
-        Self: Sized + Send + 'a,
+        Self: Send + Sized + 'a,
     {
         Box::pin(self)
     }
@@ -1273,7 +1457,7 @@ mod try_hack {
     }
 }
 
-/// Type alias for `Pin<Box<dyn Stream<Item = T> + Send>>`.
+/// Type alias for `Pin<Box<dyn Stream<Item = T> + Send + 'static>>`.
 ///
 /// # Examples
 ///
@@ -1284,9 +1468,9 @@ mod try_hack {
 /// let s1: stream::Boxed<i32> = stream::once(7).boxed();
 /// let s2: stream::Boxed<i32> = Box::pin(stream::once(7));
 /// ```
-pub type Boxed<T> = Pin<Box<dyn Stream<Item = T> + Send>>;
+pub type Boxed<T> = Pin<Box<dyn Stream<Item = T> + Send + 'static>>;
 
-/// Type alias for `Pin<Box<dyn Stream<Item = T>>>`.
+/// Type alias for `Pin<Box<dyn Stream<Item = T> + 'static>>`.
 ///
 /// # Examples
 ///
@@ -1297,7 +1481,7 @@ pub type Boxed<T> = Pin<Box<dyn Stream<Item = T> + Send>>;
 /// let s1: stream::BoxedLocal<i32> = stream::once(7).boxed_local();
 /// let s2: stream::BoxedLocal<i32> = Box::pin(stream::once(7));
 /// ```
-pub type BoxedLocal<T> = Pin<Box<dyn Stream<Item = T>>>;
+pub type BoxedLocal<T> = Pin<Box<dyn Stream<Item = T> + 'static>>;
 
 /// Future for the [`StreamExt::next()`] method.
 #[derive(Debug)]
@@ -1306,7 +1490,7 @@ pub struct NextFuture<'a, T: ?Sized> {
     stream: &'a mut T,
 }
 
-impl<S: ?Sized + Unpin> Unpin for NextFuture<'_, S> {}
+impl<S: Unpin + ?Sized> Unpin for NextFuture<'_, S> {}
 
 impl<S: Stream + Unpin + ?Sized> Future for NextFuture<'_, S> {
     type Output = Option<S::Item>;
@@ -1414,7 +1598,7 @@ pin_project! {
 
 impl<S, F, T> Future for FoldFuture<S, F, T>
 where
-    S: Stream + Sized,
+    S: Stream,
     F: FnMut(T, S::Item) -> T,
 {
     type Output = T;
@@ -2038,5 +2222,214 @@ where
             (this.f)(x);
         }
         Poll::Ready(next)
+    }
+}
+
+/// Future for the [`StreamExt::nth()`] method.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct NthFuture<'a, S: ?Sized> {
+    stream: &'a mut S,
+    n: usize,
+}
+
+impl<S: Unpin + ?Sized> Unpin for NthFuture<'_, S> {}
+
+impl<'a, S> Future for NthFuture<'a, S>
+where
+    S: Stream + Unpin + ?Sized,
+{
+    type Output = Option<S::Item>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+                Some(v) => match self.n {
+                    0 => return Poll::Ready(Some(v)),
+                    _ => self.n -= 1,
+                },
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Future for the [`StreamExt::last()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct LastFuture<S: Stream> {
+        #[pin]
+        stream: S,
+        last: Option<S::Item>,
+    }
+}
+
+impl<S: Stream> Future for LastFuture<S> {
+    type Output = Option<S::Item>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        loop {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
+                Some(new) => *this.last = Some(new),
+                None => return Poll::Ready(this.last.take()),
+            }
+        }
+    }
+}
+
+/// Future for the [`StreamExt::find()`] method.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct FindFuture<'a, S: ?Sized, P> {
+    stream: &'a mut S,
+    predicate: P,
+}
+
+impl<S: Unpin + ?Sized, P> Unpin for FindFuture<'_, S, P> {}
+
+impl<'a, S, P> Future for FindFuture<'a, S, P>
+where
+    S: Stream + Unpin + ?Sized,
+    P: FnMut(&S::Item) -> bool,
+{
+    type Output = Option<S::Item>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+                Some(v) if (&mut self.predicate)(&v) => return Poll::Ready(Some(v)),
+                Some(_) => {}
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+/// Future for the [`StreamExt::find_map()`] method.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct FindMapFuture<'a, S: ?Sized, F> {
+    stream: &'a mut S,
+    f: F,
+}
+
+impl<S: Unpin + ?Sized, F> Unpin for FindMapFuture<'_, S, F> {}
+
+impl<'a, S, B, F> Future for FindMapFuture<'a, S, F>
+where
+    S: Stream + Unpin + ?Sized,
+    F: FnMut(S::Item) -> Option<B>,
+{
+    type Output = Option<B>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+                Some(v) => {
+                    if let Some(v) = (&mut self.f)(v) {
+                        return Poll::Ready(Some(v));
+                    }
+                }
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+/// Future for the [`StreamExt::position()`] method.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct PositionFuture<'a, S: ?Sized, P> {
+    stream: &'a mut S,
+    predicate: P,
+    index: usize,
+}
+
+impl<'a, S: ?Sized, P> Unpin for PositionFuture<'a, S, P> {}
+
+impl<'a, S, P> Future for PositionFuture<'a, S, P>
+where
+    S: Stream + Unpin + ?Sized,
+    P: FnMut(S::Item) -> bool,
+{
+    type Output = Option<usize>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(Pin::new(&mut self.stream).poll_next(cx)) {
+                Some(v) => {
+                    if (&mut self.predicate)(v) {
+                        return Poll::Ready(Some(self.index));
+                    } else {
+                        self.index += 1;
+                    }
+                }
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
+/// Future for the [`StreamExt::all()`] method.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct AllFuture<'a, S: ?Sized, P> {
+    stream: &'a mut S,
+    predicate: P,
+}
+
+impl<S: Unpin + ?Sized, P> Unpin for AllFuture<'_, S, P> {}
+
+impl<S, P> Future for AllFuture<'_, S, P>
+where
+    S: Stream + Unpin + ?Sized,
+    P: FnMut(S::Item) -> bool,
+{
+    type Output = bool;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+                Some(v) => {
+                    if !(&mut self.predicate)(v) {
+                        return Poll::Ready(false);
+                    }
+                }
+                None => return Poll::Ready(true),
+            }
+        }
+    }
+}
+
+/// Future for the [`StreamExt::any()`] method.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct AnyFuture<'a, S: ?Sized, P> {
+    stream: &'a mut S,
+    predicate: P,
+}
+
+impl<S: Unpin + ?Sized, P> Unpin for AnyFuture<'_, S, P> {}
+
+impl<S, P> Future for AnyFuture<'_, S, P>
+where
+    S: Stream + Unpin + ?Sized,
+    P: FnMut(S::Item) -> bool,
+{
+    type Output = bool;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+                Some(v) => {
+                    if (&mut self.predicate)(v) {
+                        return Poll::Ready(true);
+                    }
+                }
+                None => return Poll::Ready(false),
+            }
+        }
     }
 }
