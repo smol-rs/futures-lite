@@ -689,3 +689,42 @@ where
         Poll::Pending
     }
 }
+
+// Helper for `or!`
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __internal_fold_with {
+    ($func:path, $e:expr) => { $e };
+    ($func:path, $e:expr, $($es:expr),+) => {
+        $func($e, $crate::__internal_fold_with!($func, $($es),+))
+    };
+}
+
+/// Like `FutureExt::or()`, but accepts an arbitrary number of futures rather than just
+/// two. Returns the result of the first future to complete; if multiple futures complete at the
+/// same time, returns the first one to complete. All of the futures must have the same return
+/// type.
+///
+/// You can call this as either `or_futures!` or `future::or!`.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::future::{self, pending, ready};
+///
+/// # future::block_on(async {
+/// assert_eq!(future::or!(ready(1)).await, 1);
+/// assert_eq!(future::or!(pending(), ready(2)).await, 2);
+/// assert_eq!(future::or!(pending(), pending(), ready(3)).await, 3);
+///
+/// // The first future wins.
+/// assert_eq!(future::or!(ready(1), ready(2), ready(3)).await, 1);
+/// # })
+/// ```
+#[macro_export]
+macro_rules! or_futures {
+    ($($es:expr),+$(,)?) => { $crate::__internal_fold_with!($crate::future::FutureExt::or, $($es),+) };
+}
+
+#[doc(inline)]
+pub use crate::or_futures as or;
