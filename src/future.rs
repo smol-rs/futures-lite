@@ -478,13 +478,72 @@ where
     }
 }
 
+/// Returns the result of the future that completes first, preferring `future1` if both are ready.
+///
+/// If you need to treat the two futures fairly without a preference for either, use the [`race()`]
+/// function or the [`FutureExt::race()`] method.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+/// use futures_lite::future::{pending, ready};
+///
+/// # future::block_on(async {
+/// assert_eq!(future::or(ready(1), pending()).await, 1);
+/// assert_eq!(future::or(pending(), ready(2)).await, 2);
+///
+/// // The first future wins.
+/// assert_eq!(future::or(ready(1), ready(2)).await, 1);
+/// # })
+/// ```
+pub fn or<T, F1, F2>(future1: F1, future2: F2) -> Or<F1, F2>
+where
+    F1: Future<Output = T>,
+    F2: Future<Output = T>,
+{
+    Or { future1, future2 }
+}
+
+pin_project! {
+    /// Future for the [`or()`] function and the [`FutureExt::or()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct Or<F1, F2> {
+        #[pin]
+        future1: F1,
+        #[pin]
+        future2: F2,
+    }
+}
+
+impl<T, F1, F2> Future for Or<F1, F2>
+where
+    F1: Future<Output = T>,
+    F2: Future<Output = T>,
+{
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+
+        if let Poll::Ready(t) = this.future1.poll(cx) {
+            return Poll::Ready(t);
+        }
+        if let Poll::Ready(t) = this.future2.poll(cx) {
+            return Poll::Ready(t);
+        }
+        Poll::Pending
+    }
+}
+
 /// Returns the result of the future that completes first, with no preference if both are ready.
 ///
 /// Each time [`Race`] is polled, the two inner futures are polled in random order. Therefore, no
 /// future takes precedence over the other if both can complete at the same time.
 ///
-/// If you have prec for one of the futures, use the [`or()`][`FutureExt::or()`] method
-/// instead.
+/// If you have preference for one of the futures, use the [`or()`] function or the
+/// [`FutureExt::or()`] method.
 ///
 /// # Examples
 ///
@@ -510,7 +569,7 @@ where
 
 #[cfg(feature = "std")]
 pin_project! {
-    /// Future for the [`race()`] function.
+    /// Future for the [`race()`] function and the [`FutureExt::race()`] method.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct Race<F1, F2> {
@@ -582,7 +641,7 @@ pub trait FutureExt: Future {
     /// Returns the result of `self` or `other` future, preferring `self` if both are ready.
     ///
     /// If you need to treat the two futures fairly without a preference for either, use the
-    /// [`race()`] function instead.
+    /// [`race()`] function or the [`FutureExt::race()`] method.
     ///
     /// # Examples
     ///
@@ -604,6 +663,39 @@ pub trait FutureExt: Future {
         F: Future<Output = Self::Output>,
     {
         Or {
+            future1: self,
+            future2: other,
+        }
+    }
+
+    /// Returns the result of `self` or `other` future, with no preference if both are ready.
+    ///
+    /// Each time [`Race`] is polled, the two inner futures are polled in random order. Therefore,
+    /// no future takes precedence over the other if both can complete at the same time.
+    ///
+    /// If you have preference for one of the futures, use the [`or()`] function or the
+    /// [`FutureExt::or()`] method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::future::{pending, race, ready};
+    ///
+    /// # futures_lite::future::block_on(async {
+    /// assert_eq!(race(ready(1), pending()).await, 1);
+    /// assert_eq!(race(pending(), ready(2)).await, 2);
+    ///
+    /// // One of the two futures is randomly chosen as the winner.
+    /// let res = race(ready(1), ready(2)).await;
+    /// # })
+    /// ```
+    #[cfg(feature = "std")]
+    fn race<F>(self, other: F) -> Race<Self, F>
+    where
+        Self: Sized,
+        F: Future<Output = Self::Output>,
+    {
+        Race {
             future1: self,
             future2: other,
         }
@@ -657,35 +749,3 @@ pub trait FutureExt: Future {
 }
 
 impl<F: Future + ?Sized> FutureExt for F {}
-
-pin_project! {
-    /// Future for the [`or()`][`FutureExt::or()`] method.
-    #[derive(Debug)]
-    #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct Or<F1, F2> {
-        #[pin]
-        future1: F1,
-        #[pin]
-        future2: F2,
-    }
-}
-
-impl<T, F1, F2> Future for Or<F1, F2>
-where
-    F1: Future<Output = T>,
-    F2: Future<Output = T>,
-{
-    type Output = T;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-
-        if let Poll::Ready(t) = this.future1.poll(cx) {
-            return Poll::Ready(t);
-        }
-        if let Poll::Ready(t) = this.future2.poll(cx) {
-            return Poll::Ready(t);
-        }
-        Poll::Pending
-    }
-}
