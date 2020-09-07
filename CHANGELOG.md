@@ -1,3 +1,9 @@
+# Version 1.3.0
+
+- Add `future::or()`.
+- Add `FutureExt::race()`.
+- Disable `waker-fn` dependency on `#![no_std]` targets.
+
 # Version 1.2.0
 
 - Fix compilation errors on `#![no_std]` systems.
