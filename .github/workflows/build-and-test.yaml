@@ -50,8 +50,8 @@ jobs:
         with:
           command: test
 
-      - name: Check it compiles no_std
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --no-default-features
+      - name: Install thumbv7m-none-eabi target
+        run: rustup target add thumbv7m-none-eabi
+
+      - name: Compile for thumbv7m-none-eabi target
+        run: cargo build --no-default-features --target thumbv7m-none-eabi
