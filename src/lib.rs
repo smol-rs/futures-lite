@@ -86,7 +86,7 @@ macro_rules! ready {
 ///     future::poll_fn(|cx| dbg!(f.as_mut().poll(cx))).await
 /// }
 ///
-/// # future::block_on(async {
+/// # spin_on::spin_on(async {
 /// let f = async { 1 + 2 };
 /// inspect(f).await;
 /// # })
