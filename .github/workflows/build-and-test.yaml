@@ -32,11 +32,23 @@ jobs:
             profile: minimal
             override: true
 
-      - name: Run cargo check
+      - name: Run cargo check with all features
         uses: actions-rs/cargo@v1
         with:
           command: check
           args: --all --bins --examples --tests --all-features
+
+      - name: Run cargo check with no features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all --bins --examples --tests --no-default-features
+
+      - name: Run cargo check with alloc feature
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all --bins --examples --tests --no-default-features --features alloc
 
       - name: Run cargo check (without dev-dependencies to catch missing feature flags)
         if: startsWith(matrix.rust, 'nightly')

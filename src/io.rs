@@ -14,19 +14,21 @@
 //! # std::io::Result::Ok(()) });
 //! ```
 
+#[doc(no_inline)]
+pub use std::io::{Error, ErrorKind, Result, SeekFrom};
+
+#[doc(no_inline)]
+pub use futures_io::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncWrite};
+
 use std::cmp;
 use std::fmt;
 use std::future::Future;
-#[doc(no_inline)]
-pub use std::io::{Error, ErrorKind, Result, SeekFrom};
 use std::io::{IoSlice, IoSliceMut};
 use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures_core::stream::Stream;
-#[doc(no_inline)]
-pub use futures_io::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncWrite};
 use pin_project_lite::pin_project;
 
 use crate::future;
