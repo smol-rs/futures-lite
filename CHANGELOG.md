@@ -1,3 +1,7 @@
+# Version 1.4.0
+
+- Add `alloc` Cargo feature.
+
 # Version 1.3.0
 
 - Add `future::or()`.
