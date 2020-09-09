@@ -5,7 +5,7 @@
 //! ```
 //! use futures_lite::*;
 //!
-//! future::block_on(async {
+//! spin_on::spin_on(async {
 //! let input: &[u8] = b"hello";
 //! let mut reader = io::BufReader::new(input);
 //!
@@ -46,7 +46,7 @@ const DEFAULT_BUF_SIZE: usize = 8 * 1024;
 /// ```
 /// use futures_lite::*;
 ///
-/// # future::block_on(async {
+/// # spin_on::spin_on(async {
 /// let input: &[u8] = b"hello";
 /// let reader = io::BufReader::new(input);
 ///
@@ -117,7 +117,7 @@ where
 ///
 /// let reader: &[u8] = b"hello";
 ///
-/// # future::block_on(async {
+/// # spin_on::spin_on(async {
 /// let mut async_reader = io::AssertAsync::new(reader);
 /// let mut contents = String::new();
 ///
@@ -422,7 +422,7 @@ pin_project! {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
     /// let mut reader = io::BufReader::new(input);
     ///
@@ -715,7 +715,7 @@ pin_project! {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
     /// let mut writer = io::BufWriter::new(&mut output);
     ///
@@ -817,7 +817,7 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut output = vec![1, 2, 3];
     /// let mut writer = io::BufWriter::new(&mut output);
     ///
@@ -942,7 +942,7 @@ impl<W: AsyncWrite + AsyncSeek> AsyncSeek for BufWriter<W> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # future::block_on(async {
+/// # spin_on::spin_on(async {
 /// let mut bytes = b"hello".to_vec();
 /// let mut cursor = io::Cursor::new(&mut bytes);
 ///
@@ -1036,7 +1036,7 @@ impl<T> Cursor<T> {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut cursor = io::Cursor::new(b"hello");
     /// assert_eq!(cursor.position(), 0);
     ///
@@ -1182,7 +1182,7 @@ impl AsyncWrite for Cursor<Vec<u8>> {
 /// ```
 /// use futures_lite::*;
 ///
-/// # future::block_on(async {
+/// # spin_on::spin_on(async {
 /// let mut reader = io::empty();
 ///
 /// let mut contents = Vec::new();
@@ -1229,7 +1229,7 @@ impl AsyncBufRead for Empty {
 /// ```
 /// use futures_lite::*;
 ///
-/// # future::block_on(async {
+/// # spin_on::spin_on(async {
 /// let mut reader = io::repeat(b'a');
 ///
 /// let mut contents = vec![0; 5];
@@ -1264,7 +1264,7 @@ impl AsyncRead for Repeat {
 /// ```
 /// use futures_lite::*;
 ///
-/// # future::block_on(async {
+/// # spin_on::spin_on(async {
 /// let mut writer = io::sink();
 /// writer.write_all(b"hello").await?;
 /// # std::io::Result::Ok(()) });
@@ -1310,7 +1310,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
     /// let mut reader = io::BufReader::new(input);
     ///
@@ -1343,7 +1343,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
     /// let mut reader = io::BufReader::new(input);
     ///
@@ -1375,7 +1375,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello\nworld\n";
     /// let mut reader = io::BufReader::new(input);
     /// let mut lines = reader.lines();
@@ -1409,7 +1409,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let cursor = io::Cursor::new(b"lorem-ipsum-dolor");
     /// let items: Vec<Vec<u8>> = cursor.split(b'-').try_collect().await?;
     ///
@@ -1637,7 +1637,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
     /// let mut reader = io::BufReader::new(input);
     ///
@@ -1676,7 +1676,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut reader = io::Cursor::new(vec![1, 2, 3]);
     /// let mut contents = Vec::new();
     ///
@@ -1706,7 +1706,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut reader = io::Cursor::new(&b"hello");
     /// let mut contents = String::new();
     ///
@@ -1736,7 +1736,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut reader = io::Cursor::new(&b"hello");
     /// let mut contents = vec![0; 3];
     ///
@@ -1761,7 +1761,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut reader = io::Cursor::new(&b"hello");
     /// let mut contents = String::new();
     ///
@@ -1784,7 +1784,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let reader = io::Cursor::new(&b"hello");
     /// let mut bytes = reader.bytes();
     ///
@@ -1810,7 +1810,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let r1 = io::Cursor::new(&b"hello");
     /// let r2 = io::Cursor::new(&b"world");
     /// let mut reader = r1.chain(r2);
@@ -2352,7 +2352,7 @@ pub trait AsyncSeekExt: AsyncSeek {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut cursor = io::Cursor::new("hello");
     ///
     /// // Move the cursor to the end.
@@ -2407,7 +2407,7 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
     /// let mut writer = io::BufWriter::new(&mut output);
     ///
@@ -2444,7 +2444,7 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
     /// let mut writer = io::BufWriter::new(&mut output);
     ///
@@ -2465,7 +2465,7 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
     /// let mut writer = io::BufWriter::new(&mut output);
     ///
@@ -2487,7 +2487,7 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// ```
     /// use futures_lite::*;
     ///
-    /// # future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
     /// let mut writer = io::BufWriter::new(&mut output);
     ///
