@@ -18,34 +18,22 @@
 // TODO: race!, try_race(), try_race! (randomized for fairness)
 // TODO: zip!, try_zip!
 
-use core::fmt;
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 #[doc(no_inline)]
 pub use core::future::Future;
+
+use core::fmt;
 use core::marker::PhantomData;
 use core::pin::Pin;
 
 use pin_project_lite::pin_project;
 
-#[cfg(not(feature = "std"))]
-extern crate alloc;
-#[cfg(not(feature = "std"))]
+#[cfg(feature = "alloc")]
 use alloc::boxed::Box;
-#[cfg(not(feature = "std"))]
 use core::task::{Context, Poll};
 
-#[cfg(feature = "std")]
-use core::cell::RefCell;
-#[cfg(feature = "std")]
-use core::task::{Context, Poll, Waker};
-#[cfg(feature = "std")]
-use parking::Parker;
-#[cfg(feature = "std")]
-use waker_fn::waker_fn;
-
-#[cfg(feature = "std")]
-use crate::pin;
-
-#[cfg(feature = "std")]
 /// Blocks the current thread on a future.
 ///
 /// # Examples
@@ -59,9 +47,16 @@ use crate::pin;
 ///
 /// assert_eq!(val, 3);
 /// ```
+#[cfg(feature = "std")]
 pub fn block_on<T>(future: impl Future<Output = T>) -> T {
+    use std::cell::RefCell;
+    use std::task::Waker;
+
+    use parking::Parker;
+    use waker_fn::waker_fn;
+
     // Pin the future on the stack.
-    pin!(future);
+    crate::pin!(future);
 
     // Creates a parker and an associated waker that unparks it.
     fn parker_and_waker() -> (Parker, Waker) {
@@ -621,6 +616,7 @@ where
 /// let f1: future::Boxed<i32> = async { 1 + 2 }.boxed();
 /// let f2: future::Boxed<i32> = Box::pin(async { 1 + 2 });
 /// ```
+#[cfg(feature = "alloc")]
 pub type Boxed<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 /// Type alias for `Pin<Box<dyn Future<Output = T> + 'static>>`.
@@ -634,6 +630,7 @@ pub type Boxed<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 /// let f1: future::BoxedLocal<i32> = async { 1 + 2 }.boxed_local();
 /// let f2: future::BoxedLocal<i32> = Box::pin(async { 1 + 2 });
 /// ```
+#[cfg(feature = "alloc")]
 pub type BoxedLocal<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
 
 /// Extension trait for [`Future`].
@@ -717,6 +714,7 @@ pub trait FutureExt: Future {
     /// let futures = vec![a.boxed(), b.boxed()];
     /// # })
     /// ```
+    #[cfg(feature = "alloc")]
     fn boxed<'a>(self) -> Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>
     where
         Self: Sized + Send + 'a,
@@ -740,6 +738,7 @@ pub trait FutureExt: Future {
     /// let futures = vec![a.boxed_local(), b.boxed_local()];
     /// # })
     /// ```
+    #[cfg(feature = "alloc")]
     fn boxed_local<'a>(self) -> Pin<Box<dyn Future<Output = Self::Output> + 'a>>
     where
         Self: Sized + 'a,

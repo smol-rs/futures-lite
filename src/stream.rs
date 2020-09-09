@@ -19,6 +19,15 @@
 // TODO: race() that merges streams in a fair manner
 // TODO: or() that merges streams in an unfair manner
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[doc(no_inline)]
+pub use futures_core::stream::Stream;
+
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
+
 use core::fmt;
 use core::future::Future;
 use core::marker::PhantomData;
@@ -26,18 +35,9 @@ use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-#[doc(no_inline)]
-pub use futures_core::stream::Stream;
 use pin_project_lite::pin_project;
 
-#[cfg(feature = "std")]
-use crate::future;
 use crate::ready;
-
-#[cfg(not(feature = "std"))]
-extern crate alloc;
-#[cfg(not(feature = "std"))]
-use alloc::boxed::Box;
 
 /// Converts a stream into a blocking iterator.
 ///
@@ -67,7 +67,7 @@ impl<S: Stream + Unpin> Iterator for BlockOn<S> {
     type Item = S::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        future::block_on(self.0.next())
+        crate::future::block_on(self.0.next())
     }
 }
 
@@ -1572,6 +1572,7 @@ pub trait StreamExt: Stream {
     /// let streams = vec![a.boxed(), b.boxed()];
     /// # })
     /// ```
+    #[cfg(feature = "alloc")]
     fn boxed<'a>(self) -> Pin<Box<dyn Stream<Item = Self::Item> + Send + 'a>>
     where
         Self: Send + Sized + 'a,
@@ -1595,6 +1596,7 @@ pub trait StreamExt: Stream {
     /// let streams = vec![a.boxed_local(), b.boxed_local()];
     /// # })
     /// ```
+    #[cfg(feature = "alloc")]
     fn boxed_local<'a>(self) -> Pin<Box<dyn Stream<Item = Self::Item> + 'a>>
     where
         Self: Sized + 'a,
@@ -1616,6 +1618,7 @@ impl<S: Stream + ?Sized> StreamExt for S {}
 /// let s1: stream::Boxed<i32> = stream::once(7).boxed();
 /// let s2: stream::Boxed<i32> = Box::pin(stream::once(7));
 /// ```
+#[cfg(feature = "alloc")]
 pub type Boxed<T> = Pin<Box<dyn Stream<Item = T> + Send + 'static>>;
 
 /// Type alias for `Pin<Box<dyn Stream<Item = T> + 'static>>`.
@@ -1629,6 +1632,7 @@ pub type Boxed<T> = Pin<Box<dyn Stream<Item = T> + Send + 'static>>;
 /// let s1: stream::BoxedLocal<i32> = stream::once(7).boxed_local();
 /// let s2: stream::BoxedLocal<i32> = Box::pin(stream::once(7));
 /// ```
+#[cfg(feature = "alloc")]
 pub type BoxedLocal<T> = Pin<Box<dyn Stream<Item = T> + 'static>>;
 
 /// Future for the [`StreamExt::next()`] method.
