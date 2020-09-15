@@ -1613,11 +1613,11 @@ pub trait StreamExt: Stream {
     /// use futures_lite::stream::{pending, once};
     ///
     /// # spin_on::spin_on(async {
-    /// assert_eq!(once(1).or(pending()).next().await, 1);
-    /// assert_eq!(pending().or(once(2)).next().await, 2);
+    /// assert_eq!(once(1).or(pending()).next().await, Some(1));
+    /// assert_eq!(pending().or(once(2)).next().await, Some(2));
     ///
     /// // The first future wins.
-    /// assert_eq!(once(1).or(once(2)).next().await, 1);
+    /// assert_eq!(once(1).or(once(2)).next().await, Some(1));
     /// # })
     /// ```
     fn or<S>(self, other: S) -> Or<Self, S>
@@ -2094,11 +2094,11 @@ where
 /// use futures_lite::stream::{pending, once};
 ///
 /// # spin_on::spin_on(async {
-/// assert_eq!(stream::or(once(1), pending()).next().await, 1);
-/// assert_eq!(stream::or(pending(), once(2)).next().await, 2);
+/// assert_eq!(stream::or(once(1), pending()).next().await, Some(1));
+/// assert_eq!(stream::or(pending(), once(2)).next().await, Some(2));
 ///
 /// // The first future wins.
-/// assert_eq!(future::or(once(1), once(2)).await, 1);
+/// assert_eq!(stream::or(once(1), once(2)).next().await, Some(1));
 /// # })
 /// ```
 pub fn or<T, S1, S2>(stream1: S1, stream2: S2) -> Or<S1, S2>
