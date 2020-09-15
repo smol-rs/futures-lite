@@ -1620,9 +1620,10 @@ pub trait StreamExt: Stream {
     /// assert_eq!(once(1).or(once(2)).next().await, 1);
     /// # })
     /// ```
-    fn or(self, other: Self) -> Or<Self>
+    fn or<S>(self, other: S) -> Or<Self, S>
     where
         Self: Sized,
+        S: Stream<Item = Self::Item>,
     {
         Or {
             stream1: self,
@@ -2100,9 +2101,10 @@ where
 /// assert_eq!(future::or(once(1), once(2)).await, 1);
 /// # })
 /// ```
-pub fn or<T, S>(stream1: S, stream2: S) -> Or<S>
+pub fn or<T, S1, S2>(stream1: S1, stream2: S2) -> Or<S1, S2>
 where
-    S: Stream<Item = T>,
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
 {
     Or { stream1, stream2 }
 }
@@ -2111,19 +2113,20 @@ pin_project! {
     /// Stream for the [`or()`] function and the [`StreamExt::or()`] method.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct Or<S> {
+    pub struct Or<S1, S2> {
         #[pin]
-        stream1: S,
+        stream1: S1,
         #[pin]
-        stream2: S,
+        stream2: S2,
     }
 }
 
-impl<S> Stream for Or<S>
+impl<T, S1, S2> Stream for Or<S1, S2>
 where
-    S: Stream,
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
 {
-    type Item = S::Item;
+    type Item = T;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
