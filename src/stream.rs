@@ -711,6 +711,37 @@ pub trait StreamExt: Stream {
         }
     }
 
+    /// Maps items of the stream to new values using an async closure.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # spin_on::spin_on(async {
+    /// let s = stream::iter(vec![1, 2, 3]);
+    /// let mut s = s.then(|x| async move { 2 * x });
+    ///
+    /// pin!(s);
+    /// assert_eq!(s.next().await, Some(2));
+    /// assert_eq!(s.next().await, Some(4));
+    /// assert_eq!(s.next().await, Some(6));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn then<F, Fut>(self, f: F) -> Then<Self, F, Fut>
+    where
+        Self: Sized,
+        F: FnMut(Self::Item) -> Fut,
+        Fut: Future,
+    {
+        Then {
+            stream: self,
+            future: None,
+            f,
+        }
+    }
+
     /// Keeps items of the stream for which `predicate` returns `true`.
     ///
     /// # Examples
@@ -2076,6 +2107,52 @@ where
                 None => return Poll::Ready(None),
             }
         }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::then()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Then<S, F, Fut> {
+        #[pin]
+        stream: S,
+        #[pin]
+        future: Option<Fut>,
+        f: F,
+    }
+}
+
+impl<S, F, Fut> Stream for Then<S, F, Fut>
+where
+    S: Stream,
+    F: FnMut(S::Item) -> Fut,
+    Fut: Future,
+{
+    type Item = Fut::Output;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        loop {
+            if let Some(fut) = this.future.as_mut().as_pin_mut() {
+                let item = ready!(fut.poll(cx));
+                this.future.set(None);
+                return Poll::Ready(Some(item));
+            } else if let Some(item) = ready!(this.stream.as_mut().poll_next(cx)) {
+                this.future.set(Some((this.f)(item)));
+            } else {
+                return Poll::Ready(None);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let future_len = if self.future.is_some() { 1 } else { 0 };
+        let (lower, upper) = self.stream.size_hint();
+        let lower = lower.saturating_add(future_len);
+        let upper = upper.and_then(|u| u.checked_add(future_len));
+        (lower, upper)
     }
 }
 
