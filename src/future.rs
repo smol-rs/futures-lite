@@ -543,14 +543,15 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::future::{pending, race, ready};
+/// use futures_lite::*;
+/// use futures_lite::future::{pending, ready};
 ///
-/// # futures_lite::future::block_on(async {
-/// assert_eq!(race(ready(1), pending()).await, 1);
-/// assert_eq!(race(pending(), ready(2)).await, 2);
+/// # spin_on::spin_on(async {
+/// assert_eq!(future::race(ready(1), pending()).await, 1);
+/// assert_eq!(future::race(pending(), ready(2)).await, 2);
 ///
 /// // One of the two futures is randomly chosen as the winner.
-/// let res = race(ready(1), ready(2)).await;
+/// let res = future::race(ready(1), ready(2)).await;
 /// # })
 /// ```
 #[cfg(feature = "std")]
@@ -676,14 +677,15 @@ pub trait FutureExt: Future {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::future::{pending, race, ready};
+    /// use futures_lite::*;
+    /// use futures_lite::future::{pending, ready};
     ///
-    /// # futures_lite::future::block_on(async {
-    /// assert_eq!(race(ready(1), pending()).await, 1);
-    /// assert_eq!(race(pending(), ready(2)).await, 2);
+    /// # spin_on::spin_on(async {
+    /// assert_eq!(ready(1).race(pending()).await, 1);
+    /// assert_eq!(pending().race(ready(2)).await, 2);
     ///
     /// // One of the two futures is randomly chosen as the winner.
-    /// let res = race(ready(1), ready(2)).await;
+    /// let res = ready(1).race(ready(2)).await;
     /// # })
     /// ```
     #[cfg(feature = "std")]

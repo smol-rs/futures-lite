@@ -10,7 +10,8 @@
 //!
 //! # Examples
 //!
-//! ```no_run
+#![cfg_attr(feature = "std", doc = "```no_run")]
+#![cfg_attr(not(feature = "std"), doc = "```ignore")]
 //! use futures_lite::*;
 //!
 //! fn main() {

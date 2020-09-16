@@ -16,8 +16,6 @@
 //! ```
 
 // TODO: future() constructor that converts a future to a stream
-// TODO: race() that merges streams in a fair manner
-// TODO: or() that merges streams in an unfair manner
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -1556,6 +1554,61 @@ pub trait StreamExt: Stream {
         }
     }
 
+    /// Merges with `other` stream, preferring items from `self` whenever both streams are ready.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    /// use futures_lite::stream::{once, pending};
+    ///
+    /// # spin_on::spin_on(async {
+    /// assert_eq!(once(1).or(pending()).next().await, Some(1));
+    /// assert_eq!(pending().or(once(2)).next().await, Some(2));
+    ///
+    /// // The first future wins.
+    /// assert_eq!(once(1).or(once(2)).next().await, Some(1));
+    /// # })
+    /// ```
+    fn or<S>(self, other: S) -> Or<Self, S>
+    where
+        Self: Sized,
+        S: Stream<Item = Self::Item>,
+    {
+        Or {
+            stream1: self,
+            stream2: other,
+        }
+    }
+
+    /// Merges with `other` stream, with no preference for either stream when both are ready.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    /// use futures_lite::stream::{once, pending};
+    ///
+    /// # spin_on::spin_on(async {
+    /// assert_eq!(once(1).race(pending()).next().await, Some(1));
+    /// assert_eq!(pending().race(once(2)).next().await, Some(2));
+    ///
+    /// // One of the two stream is randomly chosen as the winner.
+    /// let res = once(1).race(once(2)).next().await;
+    /// # })
+    /// ```
+    #[cfg(feature = "std")]
+    fn race<S>(self, other: S) -> Race<Self, S>
+    where
+        Self: Sized,
+        S: Stream<Item = Self::Item>,
+    {
+        Race {
+            stream1: self,
+            stream2: other,
+        }
+    }
+
     /// Boxes the stream and changes its type to `dyn Stream + Send + 'a`.
     ///
     /// # Examples
@@ -1602,33 +1655,6 @@ pub trait StreamExt: Stream {
         Self: Sized + 'a,
     {
         Box::pin(self)
-    }
-
-    /// Returns the result of `self` or `other` stream, preferring `self` if both are ready.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use futures_lite::*;
-    /// use futures_lite::stream::{pending, once};
-    ///
-    /// # spin_on::spin_on(async {
-    /// assert_eq!(once(1).or(pending()).next().await, Some(1));
-    /// assert_eq!(pending().or(once(2)).next().await, Some(2));
-    ///
-    /// // The first future wins.
-    /// assert_eq!(once(1).or(once(2)).next().await, Some(1));
-    /// # })
-    /// ```
-    fn or<S>(self, other: S) -> Or<Self, S>
-    where
-        Self: Sized,
-        S: Stream<Item = Self::Item>,
-    {
-        Or {
-            stream1: self,
-            stream2: other,
-        }
     }
 }
 
@@ -2085,19 +2111,19 @@ where
     }
 }
 
-/// Returns the result of the stream that completes first, preferring `stream1` if both are ready.
+/// Merges two streams, preferring items from `stream1` whenever both streams are ready.
 ///
 /// # Examples
 ///
 /// ```
 /// use futures_lite::*;
-/// use futures_lite::stream::{pending, once};
+/// use futures_lite::stream::{once, pending};
 ///
 /// # spin_on::spin_on(async {
 /// assert_eq!(stream::or(once(1), pending()).next().await, Some(1));
 /// assert_eq!(stream::or(pending(), once(2)).next().await, Some(2));
 ///
-/// // The first future wins.
+/// // The first stream wins.
 /// assert_eq!(stream::or(once(1), once(2)).next().await, Some(1));
 /// # })
 /// ```
@@ -2111,8 +2137,8 @@ where
 
 pin_project! {
     /// Stream for the [`or()`] function and the [`StreamExt::or()`] method.
-    #[derive(Debug)]
-    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
     pub struct Or<S1, S2> {
         #[pin]
         stream1: S1,
@@ -2135,6 +2161,73 @@ where
             return Poll::Ready(Some(t));
         }
         this.stream2.as_mut().poll_next(cx)
+    }
+}
+
+/// Merges two streams, with no preference for either stream when both are ready.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+/// use futures_lite::stream::{once, pending};
+///
+/// # spin_on::spin_on(async {
+/// assert_eq!(stream::race(once(1), pending()).next().await, Some(1));
+/// assert_eq!(stream::race(pending(), once(2)).next().await, Some(2));
+///
+/// // One of the two stream is randomly chosen as the winner.
+/// let res = stream::race(once(1), once(2)).next().await;
+/// # })
+#[cfg(feature = "std")]
+pub fn race<T, S1, S2>(stream1: S1, stream2: S2) -> Race<S1, S2>
+where
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
+{
+    Race { stream1, stream2 }
+}
+
+#[cfg(feature = "std")]
+pin_project! {
+    /// Stream for the [`race()`] function and the [`StreamExt::race()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Race<S1, S2> {
+        #[pin]
+        stream1: S1,
+        #[pin]
+        stream2: S2,
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T, S1, S2> Stream for Race<S1, S2>
+where
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
+{
+    type Item = T;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        if fastrand::bool() {
+            if let Poll::Ready(Some(t)) = this.stream1.as_mut().poll_next(cx) {
+                return Poll::Ready(Some(t));
+            }
+            if let Poll::Ready(Some(t)) = this.stream2.as_mut().poll_next(cx) {
+                return Poll::Ready(Some(t));
+            }
+        } else {
+            if let Poll::Ready(Some(t)) = this.stream2.as_mut().poll_next(cx) {
+                return Poll::Ready(Some(t));
+            }
+            if let Poll::Ready(Some(t)) = this.stream1.as_mut().poll_next(cx) {
+                return Poll::Ready(Some(t));
+            }
+        }
+        Poll::Pending
     }
 }
 

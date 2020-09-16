@@ -32,22 +32,22 @@ jobs:
             profile: minimal
             override: true
 
-      - name: Run cargo check with all features
+      - name: Run cargo test with all features
         uses: actions-rs/cargo@v1
         with:
-          command: check
+          command: test
           args: --all --bins --examples --tests --all-features
 
-      - name: Run cargo check with no features
+      - name: Run cargo test with no features
         uses: actions-rs/cargo@v1
         with:
-          command: check
+          command: test
           args: --all --bins --examples --tests --no-default-features
 
-      - name: Run cargo check with alloc feature
+      - name: Run cargo test with alloc feature
         uses: actions-rs/cargo@v1
         with:
-          command: check
+          command: test
           args: --all --bins --examples --tests --no-default-features --features alloc
 
       - name: Run cargo check (without dev-dependencies to catch missing feature flags)
@@ -56,11 +56,6 @@ jobs:
         with:
           command: check
           args: -Z features=dev_dep
-
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
 
       - name: Install thumbv7m-none-eabi target
         run: rustup target add thumbv7m-none-eabi
