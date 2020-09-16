@@ -15,8 +15,6 @@
 //! # });
 //! ```
 
-// TODO: future() constructor that converts a future to a stream
-
 #[cfg(feature = "alloc")]
 extern crate alloc;
 

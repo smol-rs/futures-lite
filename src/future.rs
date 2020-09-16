@@ -15,9 +15,6 @@
 //! # });
 //! ```
 
-// TODO: race!, try_race(), try_race! (randomized for fairness)
-// TODO: zip!, try_zip!
-
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
