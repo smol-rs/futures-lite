@@ -30,6 +30,12 @@ use core::pin::Pin;
 
 use pin_project_lite::pin_project;
 
+#[cfg(feature = "std")]
+use std::{
+    any::Any,
+    panic::{catch_unwind, AssertUnwindSafe, UnwindSafe},
+};
+
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 use core::task::{Context, Poll};
@@ -606,6 +612,27 @@ where
     }
 }
 
+#[cfg(feature = "std")]
+pin_project! {
+    /// Future for the [`FutureExt::catch_unwind()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct CatchUnwind<F> {
+        #[pin]
+        inner: F,
+    }
+}
+
+#[cfg(feature = "std")]
+impl<F: Future + UnwindSafe> Future for CatchUnwind<F> {
+    type Output = Result<F::Output, Box<dyn Any + Send>>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+        catch_unwind(AssertUnwindSafe(|| this.inner.poll(cx)))?.map(Ok)
+    }
+}
+
 /// Type alias for `Pin<Box<dyn Future<Output = T> + Send + 'static>>`.
 ///
 /// # Examples
@@ -698,6 +725,29 @@ pub trait FutureExt: Future {
             future1: self,
             future2: other,
         }
+    }
+
+    /// Catches panics while polling the future.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// # spin_on::spin_on(async {
+    /// let fut1 = async {}.catch_unwind();
+    /// let fut2 = async { panic!() }.catch_unwind();
+    ///
+    /// assert!(fut1.await.is_ok());
+    /// assert!(fut2.await.is_err());
+    /// # })
+    /// ```
+    #[cfg(feature = "std")]
+    fn catch_unwind(self) -> CatchUnwind<Self>
+    where
+        Self: Sized + UnwindSafe,
+    {
+        CatchUnwind { inner: self }
     }
 
     /// Boxes the future and changes its type to `dyn Future + Send + 'a`.
