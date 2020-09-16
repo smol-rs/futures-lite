@@ -1603,6 +1603,33 @@ pub trait StreamExt: Stream {
     {
         Box::pin(self)
     }
+
+    /// Returns the result of `self` or `other` stream, preferring `self` if both are ready.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    /// use futures_lite::stream::{pending, once};
+    ///
+    /// # spin_on::spin_on(async {
+    /// assert_eq!(once(1).or(pending()).next().await, Some(1));
+    /// assert_eq!(pending().or(once(2)).next().await, Some(2));
+    ///
+    /// // The first future wins.
+    /// assert_eq!(once(1).or(once(2)).next().await, Some(1));
+    /// # })
+    /// ```
+    fn or<S>(self, other: S) -> Or<Self, S>
+    where
+        Self: Sized,
+        S: Stream<Item = Self::Item>,
+    {
+        Or {
+            stream1: self,
+            stream2: other,
+        }
+    }
 }
 
 impl<S: Stream + ?Sized> StreamExt for S {}
@@ -2055,6 +2082,59 @@ where
                 Some(_) => {}
             }
         }
+    }
+}
+
+/// Returns the result of the stream that completes first, preferring `stream1` if both are ready.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+/// use futures_lite::stream::{pending, once};
+///
+/// # spin_on::spin_on(async {
+/// assert_eq!(stream::or(once(1), pending()).next().await, Some(1));
+/// assert_eq!(stream::or(pending(), once(2)).next().await, Some(2));
+///
+/// // The first future wins.
+/// assert_eq!(stream::or(once(1), once(2)).next().await, Some(1));
+/// # })
+/// ```
+pub fn or<T, S1, S2>(stream1: S1, stream2: S2) -> Or<S1, S2>
+where
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
+{
+    Or { stream1, stream2 }
+}
+
+pin_project! {
+    /// Stream for the [`or()`] function and the [`StreamExt::or()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct Or<S1, S2> {
+        #[pin]
+        stream1: S1,
+        #[pin]
+        stream2: S2,
+    }
+}
+
+impl<T, S1, S2> Stream for Or<S1, S2>
+where
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
+{
+    type Item = T;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        if let Poll::Ready(Some(t)) = this.stream1.as_mut().poll_next(cx) {
+            return Poll::Ready(Some(t));
+        }
+        this.stream2.as_mut().poll_next(cx)
     }
 }
 
