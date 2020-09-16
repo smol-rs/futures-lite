@@ -2183,10 +2183,13 @@ impl<R: AsyncBufRead> AsyncBufRead for Take<R> {
     }
 }
 
-/// Reader for the [`AsyncReadExt::bytes()`] method.
-#[derive(Debug)]
-pub struct Bytes<R> {
-    inner: R,
+pin_project! {
+    /// Reader for the [`AsyncReadExt::bytes()`] method.
+    #[derive(Debug)]
+    pub struct Bytes<R> {
+        #[pin]
+        inner: R,
+    }
 }
 
 impl<R: AsyncRead + Unpin> Stream for Bytes<R> {
@@ -2203,6 +2206,24 @@ impl<R: AsyncRead + Unpin> Stream for Bytes<R> {
             Err(ref e) if e.kind() == ErrorKind::Interrupted => Poll::Pending,
             Err(e) => Poll::Ready(Some(Err(e))),
         }
+    }
+}
+
+impl<R: AsyncRead> AsyncRead for Bytes<R> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        self.project().inner.poll_read(cx, buf)
+    }
+
+    fn poll_read_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
+        self.project().inner.poll_read_vectored(cx, bufs)
     }
 }
 
