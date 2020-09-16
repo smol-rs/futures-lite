@@ -1,3 +1,7 @@
+# Version 1.6.0
+
+- Add `FutureExt::catch_unwind()`.
+
 # Version 1.5.0
 
 - Add `stream::race()` and `StreamExt::race()`.
