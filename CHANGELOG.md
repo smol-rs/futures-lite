@@ -1,3 +1,7 @@
+# Version 1.5.0
+
+- Add `stream::race()` and `StreamExt::race()`.
+
 # Version 1.4.0
 
 - Add `alloc` Cargo feature.
