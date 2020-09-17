@@ -1,3 +1,8 @@
+# Version 1.7.0
+
+- Implement `AsyncRead` for `Bytes`.
+- Add `StreamExt::then()`.
+
 # Version 1.6.0
 
 - Add `FutureExt::catch_unwind()`.
