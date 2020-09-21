@@ -1368,7 +1368,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// Returns a stream over the lines of this byte stream.
     ///
     /// The stream returned from this method yields items of type
-    /// [`io::Result`][`crate::io::Result`]`<`[`String`]`>`.
+    /// [`io::Result`][`super::io::Result`]`<`[`String`]`>`.
     /// Each string returned will *not* have a newline byte (the 0xA byte) or CRLF (0xD, 0xA bytes)
     /// at the end.
     ///
@@ -1403,7 +1403,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// Returns a stream over the contents of this reader split on the specified `byte`.
     ///
     /// The stream returned from this method yields items of type
-    /// [`io::Result`][`crate::io::Result`]`<`[`Vec<u8>`][`Vec`]`>`.
+    /// [`io::Result`][`super::io::Result`]`<`[`Vec<u8>`][`Vec`]`>`.
     /// Each vector returned will *not* have the delimiter byte at the end.
     ///
     /// # Examples
