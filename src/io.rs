@@ -5,7 +5,7 @@
 //! ```
 //! use futures_lite::*;
 //!
-//! spin_on::spin_on(async {
+//! # spin_on::spin_on(async {
 //! let input: &[u8] = b"hello";
 //! let mut reader = io::BufReader::new(input);
 //!
@@ -1832,6 +1832,23 @@ pub trait AsyncReadExt: AsyncRead {
             done_first: false,
         }
     }
+
+    /// Boxes the reader and changes its type to `dyn AsyncRead + Send + 'a`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let reader = [1, 2, 3].boxed_reader();
+    /// ```
+    #[cfg(feature = "alloc")]
+    fn boxed_reader<'a>(self) -> Pin<Box<dyn AsyncRead + Send + 'a>>
+    where
+        Self: Sized + Send + 'a,
+    {
+        Box::pin(self)
+    }
 }
 
 impl<R: AsyncRead + ?Sized> AsyncReadExt for R {}
@@ -2523,6 +2540,23 @@ pub trait AsyncWriteExt: AsyncWrite {
     {
         CloseFuture { writer: self }
     }
+
+    /// Boxes the writer and changes its type to `dyn AsyncWrite + Send + 'a`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::*;
+    ///
+    /// let writer = Vec::<u8>::new().boxed_writer();
+    /// ```
+    #[cfg(feature = "alloc")]
+    fn boxed_writer<'a>(self) -> Pin<Box<dyn AsyncWrite + Send + 'a>>
+    where
+        Self: Sized + Send + 'a,
+    {
+        Box::pin(self)
+    }
 }
 
 impl<W: AsyncWrite + ?Sized> AsyncWriteExt for W {}
@@ -2628,3 +2662,27 @@ impl<W: AsyncWrite + Unpin + ?Sized> Future for CloseFuture<'_, W> {
         Pin::new(&mut *self.writer).poll_close(cx)
     }
 }
+
+/// Type alias for `Pin<Box<dyn AsyncRead + Send + 'static>>`.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// let reader = [1, 2, 3].boxed_reader();
+/// ```
+#[cfg(feature = "alloc")]
+pub type BoxedReader = Pin<Box<dyn AsyncRead + Send + 'static>>;
+
+/// Type alias for `Pin<Box<dyn AsyncWrite + Send + 'static>>`.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// let writer = Vec::<u8>::new().boxed_writer();
+/// ```
+#[cfg(feature = "alloc")]
+pub type BoxedWriter = Pin<Box<dyn AsyncWrite + Send + 'static>>;

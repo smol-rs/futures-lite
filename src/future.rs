@@ -44,7 +44,7 @@ use core::task::{Context, Poll};
 /// ```
 /// use futures_lite::*;
 ///
-/// let val = spin_on::spin_on(async {
+/// let val = future::block_on(async {
 ///     1 + 2
 /// });
 ///
