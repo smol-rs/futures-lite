@@ -1,3 +1,7 @@
+# Version 1.8.0
+
+- Add `BoxedReader` and `BoxedWriter`.
+
 # Version 1.7.0
 
 - Implement `AsyncRead` for `Bytes`.
