@@ -327,7 +327,7 @@ impl<T: Clone> Stream for Repeat<T> {
 /// use futures_lite::*;
 ///
 /// # spin_on::spin_on(async {
-/// let mut s = stream::repeat(7);
+/// let mut s = stream::repeat_with(|| 7);
 ///
 /// assert_eq!(s.next().await, Some(7));
 /// assert_eq!(s.next().await, Some(7));
