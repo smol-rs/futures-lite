@@ -26,6 +26,7 @@ use std::future::Future;
 use std::io::{IoSlice, IoSliceMut};
 use std::mem;
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use futures_core::stream::Stream;
@@ -2780,3 +2781,63 @@ pub type BoxedReader = Pin<Box<dyn AsyncRead + Send + 'static>>;
 /// ```
 #[cfg(feature = "alloc")]
 pub type BoxedWriter = Pin<Box<dyn AsyncWrite + Send + 'static>>;
+
+/// Splits a stream into [`AsyncRead`] and [`AsyncWrite`] halves.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::*;
+///
+/// # spin_on::spin_on(async {
+/// let stream = io::Cursor::new(vec![]);
+/// let (mut reader, mut writer) = io::split(stream);
+/// # std::io::Result::Ok(()) });
+/// ```
+pub fn split<T>(stream: T) -> (ReadHalf<T>, WriteHalf<T>)
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    let inner = Arc::new(Mutex::new(stream));
+    (ReadHalf(inner.clone()), WriteHalf(inner))
+}
+
+/// The read half returned by [`split()`].
+#[derive(Debug)]
+pub struct ReadHalf<T>(Arc<Mutex<T>>);
+
+/// The write half returned by [`split()`].
+#[derive(Debug)]
+pub struct WriteHalf<T>(Arc<Mutex<T>>);
+
+impl<T: AsyncRead + Unpin> AsyncRead for ReadHalf<T> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut *self.0.lock().unwrap()).poll_read(cx, buf)
+    }
+
+    fn poll_read_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut *self.0.lock().unwrap()).poll_read_vectored(cx, bufs)
+    }
+}
+
+impl<T: AsyncWrite + Unpin> AsyncWrite for WriteHalf<T> {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>> {
+        Pin::new(&mut *self.0.lock().unwrap()).poll_write(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        Pin::new(&mut *self.0.lock().unwrap()).poll_flush(cx)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        Pin::new(&mut *self.0.lock().unwrap()).poll_close(cx)
+    }
+}
