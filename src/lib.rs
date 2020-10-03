@@ -55,11 +55,11 @@ pub mod io;
 /// // Polls two futures and sums their results.
 /// fn poll_sum(
 ///     cx: &mut Context<'_>,
-///     mut a: impl Future<Output = i32> + Unpin,
-///     mut b: impl Future<Output = i32> + Unpin,
+///     a: Pin<&mut impl Future<Output = i32>>,
+///     b: Pin<&mut impl Future<Output = i32>>,
 /// ) -> Poll<i32> {
-///     let x = ready!(Pin::new(&mut a).poll(cx));
-///     let y = ready!(Pin::new(&mut b).poll(cx));
+///     let x = ready!(a.poll(cx));
+///     let y = ready!(b.poll(cx));
 ///     Poll::Ready(x + y)
 /// }
 /// ```

@@ -550,6 +550,14 @@ where
 
 /// Extension trait for [`Stream`].
 pub trait StreamExt: Stream {
+    /// A convenience for calling [`Stream::poll_next()`] on `!`[`Unpin`] types.
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Self::Item>>
+    where
+        Self: Unpin,
+    {
+        Stream::poll_next(Pin::new(self), cx)
+    }
+
     /// Retrieves the next item in the stream.
     ///
     /// Returns [`None`] when iteration is finished. Stream implementations may choose to or not to
@@ -1730,7 +1738,7 @@ impl<S: Stream + Unpin + ?Sized> Future for NextFuture<'_, S> {
     type Output = Option<S::Item>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut *self.stream).poll_next(cx)
+        self.stream.poll_next(cx)
     }
 }
 
@@ -1750,7 +1758,7 @@ where
     type Output = Result<Option<T>, E>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let res = ready!(Pin::new(&mut *self.stream).poll_next(cx));
+        let res = ready!(self.stream.poll_next(cx));
         Poll::Ready(res.transpose())
     }
 }
@@ -1931,7 +1939,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            match ready!(Pin::new(&mut self.stream).poll_next(cx)) {
+            match ready!(self.stream.poll_next(cx)) {
                 Some(Err(e)) => return Poll::Ready(Err(e)),
                 Some(Ok(t)) => {
                     let old = self.acc.take().unwrap();
@@ -2695,7 +2703,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+            match ready!(self.stream.poll_next(cx)) {
                 Some(v) => match self.n {
                     0 => return Poll::Ready(Some(v)),
                     _ => self.n -= 1,
@@ -2750,7 +2758,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+            match ready!(self.stream.poll_next(cx)) {
                 Some(v) if (&mut self.predicate)(&v) => return Poll::Ready(Some(v)),
                 Some(_) => {}
                 None => return Poll::Ready(None),
@@ -2778,7 +2786,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+            match ready!(self.stream.poll_next(cx)) {
                 Some(v) => {
                     if let Some(v) = (&mut self.f)(v) {
                         return Poll::Ready(Some(v));
@@ -2810,7 +2818,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            match ready!(Pin::new(&mut self.stream).poll_next(cx)) {
+            match ready!(self.stream.poll_next(cx)) {
                 Some(v) => {
                     if (&mut self.predicate)(v) {
                         return Poll::Ready(Some(self.index));
@@ -2843,7 +2851,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+            match ready!(self.stream.poll_next(cx)) {
                 Some(v) => {
                     if !(&mut self.predicate)(v) {
                         return Poll::Ready(false);
@@ -2874,7 +2882,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            match ready!(Pin::new(&mut *self.stream).poll_next(cx)) {
+            match ready!(self.stream.poll_next(cx)) {
                 Some(v) => {
                     if (&mut self.predicate)(v) {
                         return Poll::Ready(true);
@@ -2934,7 +2942,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            match ready!(Pin::new(&mut self.stream).poll_next(cx)) {
+            match ready!(self.stream.poll_next(cx)) {
                 None => return Poll::Ready(Ok(())),
                 Some(v) => (&mut self.f)(v)?,
             }

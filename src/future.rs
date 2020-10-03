@@ -191,8 +191,7 @@ where
     type Output = Option<T>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
-        match Pin::new(&mut this.f).poll(cx) {
+        match self.project().f.poll(cx) {
             Poll::Ready(t) => Poll::Ready(Some(t)),
             Poll::Pending => Poll::Ready(None),
         }
@@ -660,6 +659,14 @@ pub type BoxedLocal<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
 
 /// Extension trait for [`Future`].
 pub trait FutureExt: Future {
+    /// A convenience for calling [`Future::poll()`] on `!`[`Unpin`] types.
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Self::Output>
+    where
+        Self: Unpin,
+    {
+        Future::poll(Pin::new(self), cx)
+    }
+
     /// Returns the result of `self` or `other` future, preferring `self` if both are ready.
     ///
     /// If you need to treat the two futures fairly without a preference for either, use the
