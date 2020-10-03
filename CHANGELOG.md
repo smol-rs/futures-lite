@@ -1,3 +1,10 @@
+# Version 1.9.0
+
+- Add `FutureExt::poll()`.
+- Add `StreamExt::poll_next()`.
+- Add `AsyncBufReadExt::fill_buf()`.
+- Add `AsyncBufReadExt::consume()`.
+
 # Version 1.8.0
 
 - Add `BoxedReader` and `BoxedWriter`.
