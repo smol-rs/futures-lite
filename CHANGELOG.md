@@ -1,3 +1,7 @@
+# Version 1.10.0
+
+- Add `io::split()`.
+
 # Version 1.9.0
 
 - Add `FutureExt::poll()`.

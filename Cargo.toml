@@ -1,6 +1,6 @@
 [package]
 name = "futures-lite"
-version = "1.9.0"
+version = "1.10.0"
 authors = [
   "Stjepan Glavina <stjepang@gmail.com>",
   "Contributors to futures-rs",
