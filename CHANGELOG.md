@@ -1,3 +1,7 @@
+# Version 1.10.1
+
+- Fix compilation errors with Rust 1.42.0 and 1.45.2
+
 # Version 1.10.0
 
 - Add `io::split()`.
