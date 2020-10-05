@@ -2816,7 +2816,8 @@ impl<T: AsyncRead + Unpin> AsyncRead for ReadHalf<T> {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        Pin::new(&mut *self.0.lock().unwrap()).poll_read(cx, buf)
+        let mut pointer = self.0.lock().unwrap();
+        Pin::new(&mut *pointer).poll_read(cx, buf)
     }
 
     fn poll_read_vectored(
@@ -2824,20 +2825,24 @@ impl<T: AsyncRead + Unpin> AsyncRead for ReadHalf<T> {
         cx: &mut Context<'_>,
         bufs: &mut [IoSliceMut<'_>],
     ) -> Poll<Result<usize>> {
-        Pin::new(&mut *self.0.lock().unwrap()).poll_read_vectored(cx, bufs)
+        let mut pointer = self.0.lock().unwrap();
+        Pin::new(&mut *pointer).poll_read_vectored(cx, bufs)
     }
 }
 
 impl<T: AsyncWrite + Unpin> AsyncWrite for WriteHalf<T> {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>> {
-        Pin::new(&mut *self.0.lock().unwrap()).poll_write(cx, buf)
+        let mut pointer = self.0.lock().unwrap();
+        Pin::new(&mut *pointer).poll_write(cx, buf)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Pin::new(&mut *self.0.lock().unwrap()).poll_flush(cx)
+        let mut pointer = self.0.lock().unwrap();
+        Pin::new(&mut *pointer).poll_flush(cx)
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Pin::new(&mut *self.0.lock().unwrap()).poll_close(cx)
+        let mut pointer = self.0.lock().unwrap();
+        Pin::new(&mut *pointer).poll_close(cx)
     }
 }
