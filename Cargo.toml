@@ -6,7 +6,7 @@ authors = [
   "Contributors to futures-rs",
 ]
 edition = "2018"
-description = "A lightweight async prelude"
+description = "Futures, streams, and async I/O combinators"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/stjepang/futures-lite"
 homepage = "https://github.com/stjepang/futures-lite"

@@ -3,7 +3,7 @@
 //! # Examples
 //!
 //! ```
-//! use futures_lite::*;
+//! use futures_lite::future;
 //!
 //! # spin_on::spin_on(async {
 //! for step in 0..3 {
@@ -42,7 +42,7 @@ use core::task::{Context, Poll};
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future;
 ///
 /// let val = future::block_on(async {
 ///     1 + 2
@@ -115,7 +115,7 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
 /// # Examples
 ///
 /// ```no_run
-/// use futures_lite::*;
+/// use futures_lite::future;
 ///
 /// # spin_on::spin_on(async {
 /// future::pending::<()>().await;
@@ -155,7 +155,7 @@ impl<T> Future for Pending<T> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future;
 ///
 /// # spin_on::spin_on(async {
 /// assert_eq!(future::poll_once(future::pending::<()>()).await, None);
@@ -203,7 +203,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future;
 /// use std::task::{Context, Poll};
 ///
 /// # spin_on::spin_on(async {
@@ -252,7 +252,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future;
 ///
 /// # spin_on::spin_on(async {
 /// assert_eq!(future::ready(7).await, 7);
@@ -286,7 +286,7 @@ impl<T> Future for Ready<T> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future;
 ///
 /// # spin_on::spin_on(async {
 /// future::yield_now().await;
@@ -320,7 +320,7 @@ impl Future for YieldNow {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future;
 ///
 /// # spin_on::spin_on(async {
 /// let a = async { 1 };
@@ -395,7 +395,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future;
 ///
 /// # spin_on::spin_on(async {
 /// let a = async { Ok::<i32, i32>(1) };
@@ -483,8 +483,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
-/// use futures_lite::future::{pending, ready};
+/// use futures_lite::future::{self, pending, ready};
 ///
 /// # spin_on::spin_on(async {
 /// assert_eq!(future::or(ready(1), pending()).await, 1);
@@ -545,8 +544,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
-/// use futures_lite::future::{pending, ready};
+/// use futures_lite::future::{self, pending, ready};
 ///
 /// # spin_on::spin_on(async {
 /// assert_eq!(future::race(ready(1), pending()).await, 1);
@@ -634,7 +632,7 @@ impl<F: Future + UnwindSafe> Future for CatchUnwind<F> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future::{self, FutureExt};
 ///
 /// // These two lines are equivalent:
 /// let f1: future::Boxed<i32> = async { 1 + 2 }.boxed();
@@ -648,7 +646,7 @@ pub type Boxed<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future::{self, FutureExt};
 ///
 /// // These two lines are equivalent:
 /// let f1: future::BoxedLocal<i32> = async { 1 + 2 }.boxed_local();
@@ -675,8 +673,7 @@ pub trait FutureExt: Future {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
-    /// use futures_lite::future::{pending, ready};
+    /// use futures_lite::future::{pending, ready, FutureExt};
     ///
     /// # spin_on::spin_on(async {
     /// assert_eq!(ready(1).or(pending()).await, 1);
@@ -708,8 +705,7 @@ pub trait FutureExt: Future {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
-    /// use futures_lite::future::{pending, ready};
+    /// use futures_lite::future::{pending, ready, FutureExt};
     ///
     /// # spin_on::spin_on(async {
     /// assert_eq!(ready(1).race(pending()).await, 1);
@@ -736,7 +732,7 @@ pub trait FutureExt: Future {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::future::FutureExt;
     ///
     /// # spin_on::spin_on(async {
     /// let fut1 = async {}.catch_unwind();
@@ -759,7 +755,7 @@ pub trait FutureExt: Future {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::future::{self, FutureExt};
     ///
     /// # spin_on::spin_on(async {
     /// let a = future::ready('a');
@@ -783,7 +779,7 @@ pub trait FutureExt: Future {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::future::{self, FutureExt};
     ///
     /// # spin_on::spin_on(async {
     /// let a = future::ready('a');

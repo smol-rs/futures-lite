@@ -3,7 +3,7 @@
 //! # Examples
 //!
 //! ```
-//! use futures_lite::*;
+//! use futures_lite::io::{self, AsyncReadExt};
 //!
 //! # spin_on::spin_on(async {
 //! let input: &[u8] = b"hello";
@@ -47,14 +47,14 @@ const DEFAULT_BUF_SIZE: usize = 8 * 1024;
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::{self, BufReader, BufWriter};
 ///
 /// # spin_on::spin_on(async {
 /// let input: &[u8] = b"hello";
-/// let reader = io::BufReader::new(input);
+/// let reader = BufReader::new(input);
 ///
 /// let mut output = Vec::new();
-/// let writer = io::BufWriter::new(&mut output);
+/// let writer = BufWriter::new(&mut output);
 ///
 /// io::copy(reader, writer).await?;
 /// # std::io::Result::Ok(()) });
@@ -116,12 +116,12 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::{AssertAsync, AsyncReadExt};
 ///
 /// let reader: &[u8] = b"hello";
 ///
 /// # spin_on::spin_on(async {
-/// let mut async_reader = io::AssertAsync::new(reader);
+/// let mut async_reader = AssertAsync::new(reader);
 /// let mut contents = String::new();
 ///
 /// // This line works in async manner - note that there is await:
@@ -139,11 +139,11 @@ impl<T> AssertAsync<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::AssertAsync;
     ///
     /// let reader: &[u8] = b"hello";
     ///
-    /// let async_reader = io::AssertAsync::new(reader);
+    /// let async_reader = AssertAsync::new(reader);
     /// ```
     pub fn new(io: T) -> Self {
         AssertAsync(io)
@@ -154,11 +154,11 @@ impl<T> AssertAsync<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::AssertAsync;
     ///
     /// let reader: &[u8] = b"hello";
     ///
-    /// let async_reader = io::AssertAsync::new(reader);
+    /// let async_reader = AssertAsync::new(reader);
     /// let r = async_reader.get_ref();
     /// ```
     pub fn get_ref(&self) -> &T {
@@ -170,11 +170,11 @@ impl<T> AssertAsync<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::AssertAsync;
     ///
     /// let reader: &[u8] = b"hello";
     ///
-    /// let mut async_reader = io::AssertAsync::new(reader);
+    /// let mut async_reader = AssertAsync::new(reader);
     /// let r = async_reader.get_mut();
     /// ```
     pub fn get_mut(&mut self) -> &mut T {
@@ -186,11 +186,11 @@ impl<T> AssertAsync<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::AssertAsync;
     ///
     /// let reader: &[u8] = b"hello";
     ///
-    /// let async_reader = io::AssertAsync::new(reader);
+    /// let async_reader = AssertAsync::new(reader);
     /// let inner = async_reader.into_inner();
     /// ```
     pub fn into_inner(self) -> T {
@@ -298,18 +298,19 @@ impl<T: std::io::Seek> AsyncSeek for AssertAsync<T> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::BlockOn;
+/// use futures_lite::pin;
 /// use std::io::Read;
 ///
 /// let reader: &[u8] = b"hello";
 /// pin!(reader);
 ///
-/// let mut blocking_reader = io::BlockOn::new(reader);
+/// let mut blocking_reader = BlockOn::new(reader);
 /// let mut contents = String::new();
 ///
 /// // This line blocks - note that there is no await:
 /// blocking_reader.read_to_string(&mut contents)?;
-/// # io::Result::Ok(())
+/// # std::io::Result::Ok(())
 /// ```
 #[derive(Debug)]
 pub struct BlockOn<T>(T);
@@ -320,12 +321,13 @@ impl<T> BlockOn<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BlockOn;
+    /// use futures_lite::pin;
     ///
     /// let reader: &[u8] = b"hello";
     /// pin!(reader);
     ///
-    /// let blocking_reader = io::BlockOn::new(reader);
+    /// let blocking_reader = BlockOn::new(reader);
     /// ```
     pub fn new(io: T) -> BlockOn<T> {
         BlockOn(io)
@@ -336,12 +338,13 @@ impl<T> BlockOn<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BlockOn;
+    /// use futures_lite::pin;
     ///
     /// let reader: &[u8] = b"hello";
     /// pin!(reader);
     ///
-    /// let blocking_reader = io::BlockOn::new(reader);
+    /// let blocking_reader = BlockOn::new(reader);
     /// let r = blocking_reader.get_ref();
     /// ```
     pub fn get_ref(&self) -> &T {
@@ -353,12 +356,13 @@ impl<T> BlockOn<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BlockOn;
+    /// use futures_lite::pin;
     ///
     /// let reader: &[u8] = b"hello";
     /// pin!(reader);
     ///
-    /// let mut blocking_reader = io::BlockOn::new(reader);
+    /// let mut blocking_reader = BlockOn::new(reader);
     /// let r = blocking_reader.get_mut();
     /// ```
     pub fn get_mut(&mut self) -> &mut T {
@@ -370,12 +374,13 @@ impl<T> BlockOn<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BlockOn;
+    /// use futures_lite::pin;
     ///
     /// let reader: &[u8] = b"hello";
     /// pin!(reader);
     ///
-    /// let blocking_reader = io::BlockOn::new(reader);
+    /// let blocking_reader = BlockOn::new(reader);
     /// let inner = blocking_reader.into_inner();
     /// ```
     pub fn into_inner(self) -> T {
@@ -423,11 +428,11 @@ pin_project! {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncBufReadExt, BufReader};
     ///
     /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
-    /// let mut reader = io::BufReader::new(input);
+    /// let mut reader = BufReader::new(input);
     ///
     /// let mut line = String::new();
     /// reader.read_line(&mut line).await?;
@@ -450,10 +455,10 @@ impl<R: AsyncRead> BufReader<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufReader;
     ///
     /// let input: &[u8] = b"hello";
-    /// let reader = io::BufReader::new(input);
+    /// let reader = BufReader::new(input);
     /// ```
     pub fn new(inner: R) -> BufReader<R> {
         BufReader::with_capacity(DEFAULT_BUF_SIZE, inner)
@@ -464,10 +469,10 @@ impl<R: AsyncRead> BufReader<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufReader;
     ///
     /// let input: &[u8] = b"hello";
-    /// let reader = io::BufReader::with_capacity(1024, input);
+    /// let reader = BufReader::with_capacity(1024, input);
     /// ```
     pub fn with_capacity(capacity: usize, inner: R) -> BufReader<R> {
         BufReader {
@@ -487,10 +492,10 @@ impl<R> BufReader<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufReader;
     ///
     /// let input: &[u8] = b"hello";
-    /// let reader = io::BufReader::new(input);
+    /// let reader = BufReader::new(input);
     ///
     /// let r = reader.get_ref();
     /// ```
@@ -505,10 +510,10 @@ impl<R> BufReader<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufReader;
     ///
     /// let input: &[u8] = b"hello";
-    /// let mut reader = io::BufReader::new(input);
+    /// let mut reader = BufReader::new(input);
     ///
     /// let r = reader.get_mut();
     /// ```
@@ -530,10 +535,10 @@ impl<R> BufReader<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufReader;
     ///
     /// let input: &[u8] = b"hello";
-    /// let reader = io::BufReader::new(input);
+    /// let reader = BufReader::new(input);
     ///
     /// // The internal buffer is empty until the first read request.
     /// assert_eq!(reader.buffer(), &[]);
@@ -549,10 +554,10 @@ impl<R> BufReader<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufReader;
     ///
     /// let input: &[u8] = b"hello";
-    /// let reader = io::BufReader::new(input);
+    /// let reader = BufReader::new(input);
     ///
     /// assert_eq!(reader.into_inner(), input);
     /// ```
@@ -578,14 +583,15 @@ impl<R: AsyncRead> AsyncRead for BufReader<R> {
         // If we don't have any buffered data and we're doing a massive read
         // (larger than our internal buffer), bypass our internal buffer
         // entirely.
-        if self.pos == self.cap && buf.len() >= self.buf.len() {
-            let res = ready!(self.as_mut().get_pin_mut().poll_read(cx, buf));
-            self.discard_buffer();
-            return Poll::Ready(res);
-        }
+        // if self.pos == self.cap && buf.len() >= self.buf.len() {
+        //     let res = ready!(self.as_mut().get_pin_mut().poll_read(cx, buf));
+        //     self.discard_buffer();
+        //     return Poll::Ready(res);
+        // }
         let mut rem = ready!(self.as_mut().poll_fill_buf(cx))?;
         let nread = std::io::Read::read(&mut rem, buf)?;
         self.consume(nread);
+        // println!(">>> {} <<<", std::str::from_utf8(&buf[..buf.len()-nread]).unwrap());
         Poll::Ready(Ok(nread))
     }
 
@@ -610,6 +616,7 @@ impl<R: AsyncRead> AsyncRead for BufReader<R> {
 impl<R: AsyncRead> AsyncBufRead for BufReader<R> {
     fn poll_fill_buf<'a>(self: Pin<&'a mut Self>, cx: &mut Context<'_>) -> Poll<Result<&'a [u8]>> {
         let mut this = self.project();
+        println!("POLL_FILL_BUF");
 
         // If we've reached the end of our internal buffer then we need to fetch
         // some more data from the underlying reader.
@@ -617,9 +624,10 @@ impl<R: AsyncRead> AsyncBufRead for BufReader<R> {
         // to tell the compiler that the pos..cap slice is always valid.
         if *this.pos >= *this.cap {
             debug_assert!(*this.pos == *this.cap);
-            *this.cap = ready!(this.inner.as_mut().poll_read(cx, this.buf))?;
+            *this.cap = ready!(dbg!(this.inner.as_mut().poll_read(cx, this.buf)))?;
             *this.pos = 0;
         }
+        println!(">>> {} <<<", std::str::from_utf8(&this.buf[*this.pos..*this.cap]).unwrap());
         Poll::Ready(Ok(&this.buf[*this.pos..*this.cap]))
     }
 
@@ -716,11 +724,11 @@ pin_project! {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncWriteExt, BufWriter};
     ///
     /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
-    /// let mut writer = io::BufWriter::new(&mut output);
+    /// let mut writer = BufWriter::new(&mut output);
     ///
     /// writer.write_all(b"hello").await?;
     /// writer.flush().await?;
@@ -742,10 +750,10 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufWriter;
     ///
     /// let mut output = Vec::new();
-    /// let writer = io::BufWriter::new(&mut output);
+    /// let writer = BufWriter::new(&mut output);
     /// ```
     pub fn new(inner: W) -> BufWriter<W> {
         BufWriter::with_capacity(DEFAULT_BUF_SIZE, inner)
@@ -756,10 +764,10 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufWriter;
     ///
     /// let mut output = Vec::new();
-    /// let writer = io::BufWriter::with_capacity(100, &mut output);
+    /// let writer = BufWriter::with_capacity(100, &mut output);
     /// ```
     pub fn with_capacity(capacity: usize, inner: W) -> BufWriter<W> {
         BufWriter {
@@ -774,10 +782,10 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufWriter;
     ///
     /// let mut output = Vec::new();
-    /// let writer = io::BufWriter::new(&mut output);
+    /// let writer = BufWriter::new(&mut output);
     ///
     /// let r = writer.get_ref();
     /// ```
@@ -792,10 +800,10 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufWriter;
     ///
     /// let mut output = Vec::new();
-    /// let mut writer = io::BufWriter::new(&mut output);
+    /// let mut writer = BufWriter::new(&mut output);
     ///
     /// let r = writer.get_mut();
     /// ```
@@ -818,11 +826,11 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncWriteExt, BufWriter};
     ///
     /// # spin_on::spin_on(async {
     /// let mut output = vec![1, 2, 3];
-    /// let mut writer = io::BufWriter::new(&mut output);
+    /// let mut writer = BufWriter::new(&mut output);
     ///
     /// writer.write_all(&[4]).await?;
     /// writer.flush().await?;
@@ -838,10 +846,10 @@ impl<W: AsyncWrite> BufWriter<W> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::BufWriter;
     ///
     /// let mut output = Vec::new();
-    /// let writer = io::BufWriter::new(&mut output);
+    /// let writer = BufWriter::new(&mut output);
     ///
     /// // The internal buffer is empty until the first write request.
     /// assert_eq!(writer.buffer(), &[]);
@@ -943,17 +951,17 @@ impl<W: AsyncWrite + AsyncSeek> AsyncSeek for BufWriter<W> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, Cursor, SeekFrom};
 ///
 /// # spin_on::spin_on(async {
 /// let mut bytes = b"hello".to_vec();
-/// let mut cursor = io::Cursor::new(&mut bytes);
+/// let mut cursor = Cursor::new(&mut bytes);
 ///
 /// // Overwrite 'h' with 'H'.
 /// cursor.write_all(b"H").await?;
 ///
 /// // Move the cursor one byte forward.
-/// cursor.seek(io::SeekFrom::Current(1)).await?;
+/// cursor.seek(SeekFrom::Current(1)).await?;
 ///
 /// // Read a byte.
 /// let mut byte = [0];
@@ -980,9 +988,9 @@ impl<T> Cursor<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::Cursor;
     ///
-    /// let cursor = io::Cursor::new(Vec::<u8>::new());
+    /// let cursor = Cursor::new(Vec::<u8>::new());
     /// ```
     pub fn new(inner: T) -> Cursor<T> {
         Cursor {
@@ -995,9 +1003,9 @@ impl<T> Cursor<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::Cursor;
     ///
-    /// let cursor = io::Cursor::new(Vec::<u8>::new());
+    /// let cursor = Cursor::new(Vec::<u8>::new());
     /// let r = cursor.get_ref();
     /// ```
     pub fn get_ref(&self) -> &T {
@@ -1009,9 +1017,9 @@ impl<T> Cursor<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::Cursor;
     ///
-    /// let mut cursor = io::Cursor::new(Vec::<u8>::new());
+    /// let mut cursor = Cursor::new(Vec::<u8>::new());
     /// let r = cursor.get_mut();
     /// ```
     pub fn get_mut(&mut self) -> &mut T {
@@ -1023,9 +1031,9 @@ impl<T> Cursor<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::Cursor;
     ///
-    /// let cursor = io::Cursor::new(vec![1, 2, 3]);
+    /// let cursor = Cursor::new(vec![1, 2, 3]);
     /// assert_eq!(cursor.into_inner(), [1, 2, 3]);
     /// ```
     pub fn into_inner(self) -> T {
@@ -1037,13 +1045,13 @@ impl<T> Cursor<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncSeekExt, Cursor, SeekFrom};
     ///
     /// # spin_on::spin_on(async {
-    /// let mut cursor = io::Cursor::new(b"hello");
+    /// let mut cursor = Cursor::new(b"hello");
     /// assert_eq!(cursor.position(), 0);
     ///
-    /// cursor.seek(io::SeekFrom::Start(2)).await?;
+    /// cursor.seek(SeekFrom::Start(2)).await?;
     /// assert_eq!(cursor.position(), 2);
     /// # std::io::Result::Ok(()) });
     /// ```
@@ -1056,9 +1064,9 @@ impl<T> Cursor<T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::Cursor;
     ///
-    /// let mut cursor = io::Cursor::new(b"hello");
+    /// let mut cursor = Cursor::new(b"hello");
     /// assert_eq!(cursor.position(), 0);
     ///
     /// cursor.set_position(2);
@@ -1183,7 +1191,7 @@ impl AsyncWrite for Cursor<Vec<u8>> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::{self, AsyncReadExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut reader = io::empty();
@@ -1230,7 +1238,7 @@ impl AsyncBufRead for Empty {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::{self, AsyncReadExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut reader = io::repeat(b'a');
@@ -1265,7 +1273,7 @@ impl AsyncRead for Repeat {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::{self, AsyncWriteExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut writer = io::sink();
@@ -1308,12 +1316,12 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncBufReadExt, BufReader};
     /// use std::pin::Pin;
     ///
     /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello world";
-    /// let mut reader = io::BufReader::with_capacity(5, input);
+    /// let mut reader = BufReader::with_capacity(5, input);
     ///
     /// assert_eq!(reader.fill_buf().await?, b"hello");
     /// reader.consume(2);
@@ -1340,12 +1348,12 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncBufReadExt, BufReader};
     /// use std::pin::Pin;
     ///
     /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
-    /// let mut reader = io::BufReader::with_capacity(4, input);
+    /// let mut reader = BufReader::with_capacity(4, input);
     ///
     /// assert_eq!(reader.fill_buf().await?, b"hell");
     /// reader.consume(2);
@@ -1369,11 +1377,11 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncBufReadExt, BufReader};
     ///
     /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
-    /// let mut reader = io::BufReader::new(input);
+    /// let mut reader = BufReader::new(input);
     ///
     /// let mut buf = Vec::new();
     /// let n = reader.read_until(b'\n', &mut buf).await?;
@@ -1402,11 +1410,11 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncBufReadExt, BufReader};
     ///
     /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
-    /// let mut reader = io::BufReader::new(input);
+    /// let mut reader = BufReader::new(input);
     ///
     /// let mut line = String::new();
     /// let n = reader.read_line(&mut line).await?;
@@ -1434,11 +1442,12 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncBufReadExt, BufReader};
+    /// use futures_lite::stream::StreamExt;
     ///
     /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello\nworld\n";
-    /// let mut reader = io::BufReader::new(input);
+    /// let mut reader = BufReader::new(input);
     /// let mut lines = reader.lines();
     ///
     /// let mut line = String::new();
@@ -1468,10 +1477,11 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncBufReadExt, Cursor};
+    /// use futures_lite::stream::StreamExt;
     ///
     /// # spin_on::spin_on(async {
-    /// let cursor = io::Cursor::new(b"lorem-ipsum-dolor");
+    /// let cursor = Cursor::new(b"lorem-ipsum-dolor");
     /// let items: Vec<Vec<u8>> = cursor.split(b'-').try_collect().await?;
     ///
     /// assert_eq!(items[0], b"lorem");
@@ -1576,6 +1586,7 @@ fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
             }
         };
 
+        // println!(">>> {} <<<", std::str::from_utf8(&buf[..buf.len()-used]).unwrap());
         reader.as_mut().consume(used);
         *read += used;
 
@@ -1732,11 +1743,11 @@ pub trait AsyncReadExt: AsyncRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, BufReader};
     ///
     /// # spin_on::spin_on(async {
     /// let input: &[u8] = b"hello";
-    /// let mut reader = io::BufReader::new(input);
+    /// let mut reader = BufReader::new(input);
     ///
     /// let mut buf = vec![0; 1024];
     /// let n = reader.read(&mut buf).await?;
@@ -1771,10 +1782,10 @@ pub trait AsyncReadExt: AsyncRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
     /// # spin_on::spin_on(async {
-    /// let mut reader = io::Cursor::new(vec![1, 2, 3]);
+    /// let mut reader = Cursor::new(vec![1, 2, 3]);
     /// let mut contents = Vec::new();
     ///
     /// let n = reader.read_to_end(&mut contents).await?;
@@ -1801,10 +1812,10 @@ pub trait AsyncReadExt: AsyncRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
     /// # spin_on::spin_on(async {
-    /// let mut reader = io::Cursor::new(&b"hello");
+    /// let mut reader = Cursor::new(&b"hello");
     /// let mut contents = String::new();
     ///
     /// let n = reader.read_to_string(&mut contents).await?;
@@ -1831,10 +1842,10 @@ pub trait AsyncReadExt: AsyncRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
     /// # spin_on::spin_on(async {
-    /// let mut reader = io::Cursor::new(&b"hello");
+    /// let mut reader = Cursor::new(&b"hello");
     /// let mut contents = vec![0; 3];
     ///
     /// reader.read_exact(&mut contents).await?;
@@ -1856,10 +1867,10 @@ pub trait AsyncReadExt: AsyncRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
     /// # spin_on::spin_on(async {
-    /// let mut reader = io::Cursor::new(&b"hello");
+    /// let mut reader = Cursor::new(&b"hello");
     /// let mut contents = String::new();
     ///
     /// let n = reader.take(3).read_to_string(&mut contents).await?;
@@ -1879,10 +1890,11 @@ pub trait AsyncReadExt: AsyncRead {
     /// The returned type implements [`Stream`] where `Item` is `io::Result<u8>`.
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
+    /// use futures_lite::stream::StreamExt;
     ///
     /// # spin_on::spin_on(async {
-    /// let reader = io::Cursor::new(&b"hello");
+    /// let reader = Cursor::new(&b"hello");
     /// let mut bytes = reader.bytes();
     ///
     /// while let Some(byte) = bytes.next().await {
@@ -1905,11 +1917,11 @@ pub trait AsyncReadExt: AsyncRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
     /// # spin_on::spin_on(async {
-    /// let r1 = io::Cursor::new(&b"hello");
-    /// let r2 = io::Cursor::new(&b"world");
+    /// let r1 = Cursor::new(&b"hello");
+    /// let r2 = Cursor::new(&b"world");
     /// let mut reader = r1.chain(r2);
     ///
     /// let mut contents = String::new();
@@ -1933,7 +1945,7 @@ pub trait AsyncReadExt: AsyncRead {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::AsyncReadExt;
     ///
     /// let reader = [1, 2, 3].boxed_reader();
     /// ```
@@ -2154,9 +2166,9 @@ impl<R> Take<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
-    /// let reader = io::Cursor::new("hello");
+    /// let reader = Cursor::new("hello");
     ///
     /// let reader = reader.take(3);
     /// assert_eq!(reader.limit(), 3);
@@ -2172,9 +2184,9 @@ impl<R> Take<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
-    /// let reader = io::Cursor::new("hello");
+    /// let reader = Cursor::new("hello");
     ///
     /// let mut reader = reader.take(10);
     /// assert_eq!(reader.limit(), 10);
@@ -2191,9 +2203,9 @@ impl<R> Take<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
-    /// let reader = io::Cursor::new("hello");
+    /// let reader = Cursor::new("hello");
     ///
     /// let reader = reader.take(3);
     /// let r = reader.get_ref();
@@ -2207,9 +2219,9 @@ impl<R> Take<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
-    /// let reader = io::Cursor::new("hello");
+    /// let reader = Cursor::new("hello");
     ///
     /// let mut reader = reader.take(3);
     /// let r = reader.get_mut();
@@ -2223,9 +2235,9 @@ impl<R> Take<R> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
-    /// let reader = io::Cursor::new("hello");
+    /// let reader = Cursor::new("hello");
     ///
     /// let reader = reader.take(3);
     /// let reader = reader.into_inner();
@@ -2356,10 +2368,10 @@ impl<R1, R2> Chain<R1, R2> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
-    /// let r1 = io::Cursor::new(b"hello");
-    /// let r2 = io::Cursor::new(b"world");
+    /// let r1 = Cursor::new(b"hello");
+    /// let r2 = Cursor::new(b"world");
     ///
     /// let reader = r1.chain(r2);
     /// let (r1, r2) = reader.get_ref();
@@ -2373,10 +2385,10 @@ impl<R1, R2> Chain<R1, R2> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
-    /// let r1 = io::Cursor::new(b"hello");
-    /// let r2 = io::Cursor::new(b"world");
+    /// let r1 = Cursor::new(b"hello");
+    /// let r2 = Cursor::new(b"world");
     ///
     /// let mut reader = r1.chain(r2);
     /// let (r1, r2) = reader.get_mut();
@@ -2390,10 +2402,10 @@ impl<R1, R2> Chain<R1, R2> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncReadExt, Cursor};
     ///
-    /// let r1 = io::Cursor::new(b"hello");
-    /// let r2 = io::Cursor::new(b"world");
+    /// let r1 = Cursor::new(b"hello");
+    /// let r2 = Cursor::new(b"world");
     ///
     /// let reader = r1.chain(r2);
     /// let (r1, r2) = reader.into_inner();
@@ -2485,16 +2497,16 @@ pub trait AsyncSeekExt: AsyncSeek {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncSeekExt, Cursor, SeekFrom};
     ///
     /// # spin_on::spin_on(async {
-    /// let mut cursor = io::Cursor::new("hello");
+    /// let mut cursor = Cursor::new("hello");
     ///
     /// // Move the cursor to the end.
-    /// cursor.seek(io::SeekFrom::End(0)).await?;
+    /// cursor.seek(SeekFrom::End(0)).await?;
     ///
     /// // Check the current position.
-    /// assert_eq!(cursor.seek(io::SeekFrom::Current(0)).await?, 5);
+    /// assert_eq!(cursor.seek(SeekFrom::Current(0)).await?, 5);
     /// # std::io::Result::Ok(()) });
     /// ```
     fn seek(&mut self, pos: SeekFrom) -> SeekFuture<'_, Self>
@@ -2540,11 +2552,11 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncWriteExt, BufWriter};
     ///
     /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
-    /// let mut writer = io::BufWriter::new(&mut output);
+    /// let mut writer = BufWriter::new(&mut output);
     ///
     /// let n = writer.write(b"hello").await?;
     /// # std::io::Result::Ok(()) });
@@ -2577,11 +2589,11 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncWriteExt, BufWriter};
     ///
     /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
-    /// let mut writer = io::BufWriter::new(&mut output);
+    /// let mut writer = BufWriter::new(&mut output);
     ///
     /// let n = writer.write_all(b"hello").await?;
     /// # std::io::Result::Ok(()) });
@@ -2598,11 +2610,11 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncWriteExt, BufWriter};
     ///
     /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
-    /// let mut writer = io::BufWriter::new(&mut output);
+    /// let mut writer = BufWriter::new(&mut output);
     ///
     /// writer.write_all(b"hello").await?;
     /// writer.flush().await?;
@@ -2620,11 +2632,11 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::{AsyncWriteExt, BufWriter};
     ///
     /// # spin_on::spin_on(async {
     /// let mut output = Vec::new();
-    /// let mut writer = io::BufWriter::new(&mut output);
+    /// let mut writer = BufWriter::new(&mut output);
     ///
     /// writer.close().await?;
     /// # std::io::Result::Ok(()) });
@@ -2641,7 +2653,7 @@ pub trait AsyncWriteExt: AsyncWrite {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::io::AsyncWriteExt;
     ///
     /// let writer = Vec::<u8>::new().boxed_writer();
     /// ```
@@ -2763,7 +2775,7 @@ impl<W: AsyncWrite + Unpin + ?Sized> Future for CloseFuture<'_, W> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::AsyncReadExt;
 ///
 /// let reader = [1, 2, 3].boxed_reader();
 /// ```
@@ -2775,7 +2787,7 @@ pub type BoxedReader = Pin<Box<dyn AsyncRead + Send + 'static>>;
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::AsyncWriteExt;
 ///
 /// let writer = Vec::<u8>::new().boxed_writer();
 /// ```
@@ -2787,10 +2799,10 @@ pub type BoxedWriter = Pin<Box<dyn AsyncWrite + Send + 'static>>;
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::io::{self, Cursor};
 ///
 /// # spin_on::spin_on(async {
-/// let stream = io::Cursor::new(vec![]);
+/// let stream = Cursor::new(vec![]);
 /// let (mut reader, mut writer) = io::split(stream);
 /// # std::io::Result::Ok(()) });
 /// ```

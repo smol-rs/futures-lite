@@ -22,7 +22,7 @@ it.
 ## Examples
 
 ```rust
-use futures_lite::*;
+use futures_lite::future;
 
 fn main() {
     future::block_on(async {

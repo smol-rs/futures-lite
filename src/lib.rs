@@ -1,4 +1,4 @@
-//! A lightweight async prelude.
+//! Futures, streams, and async I/O combinators.
 //!
 //! This crate is a subset of [futures] that compiles an order of magnitude faster, fixes minor
 //! warts in its API, fills in some obvious gaps, and removes almost all unsafe code from it.
@@ -12,7 +12,7 @@
 //!
 #![cfg_attr(feature = "std", doc = "```no_run")]
 #![cfg_attr(not(feature = "std"), doc = "```ignore")]
-//! use futures_lite::*;
+//! use futures_lite::future;
 //!
 //! fn main() {
 //!     future::block_on(async {
@@ -24,20 +24,21 @@
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[doc(no_inline)]
-pub use crate::future::{Future, FutureExt};
-
+// TODO: These hidden re-exports are deprecated and should eventually be removed.
 #[cfg(feature = "std")]
-#[doc(no_inline)]
+#[doc(hidden)]
 pub use crate::io::{
     AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite,
     AsyncWriteExt,
 };
-
-#[doc(no_inline)]
-pub use crate::stream::{Stream, StreamExt};
+#[doc(hidden)]
+pub use crate::{
+    future::{Future, FutureExt},
+    stream::{Stream, StreamExt},
+};
 
 pub mod future;
+pub mod prelude;
 pub mod stream;
 
 #[cfg(feature = "std")]
@@ -48,7 +49,9 @@ pub mod io;
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::future::FutureExt;
+/// use futures_lite::ready;
+/// use std::future::Future;
 /// use std::pin::Pin;
 /// use std::task::{Context, Poll};
 ///
@@ -76,8 +79,9 @@ macro_rules! ready {
 /// Pins a variable of type `T` on the stack and rebinds it as `Pin<&mut T>`.
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::{future, pin};
 /// use std::fmt::Debug;
+/// use std::future::Future;
 /// use std::pin::Pin;
 /// use std::time::Instant;
 ///

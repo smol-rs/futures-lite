@@ -3,7 +3,7 @@
 //! # Examples
 //!
 //! ```
-//! use futures_lite::*;
+//! use futures_lite::stream::{self, StreamExt};
 //!
 //! # spin_on::spin_on(async {
 //! let mut s = stream::iter(vec![1, 2, 3]);
@@ -40,7 +40,7 @@ use crate::ready;
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::{pin, stream};
 ///
 /// let stream = stream::once(7);
 /// pin!(stream);
@@ -72,7 +72,7 @@ impl<S: Stream + Unpin> Iterator for BlockOn<S> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut s = stream::empty::<i32>();
@@ -111,7 +111,7 @@ impl<T> Stream for Empty<T> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut s = stream::iter(vec![1, 2]);
@@ -153,7 +153,7 @@ impl<I: Iterator> Stream for Iter<I> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut s = stream::once(7);
@@ -196,7 +196,7 @@ impl<T> Stream for Once<T> {
 /// # Examples
 ///
 /// ```no_run
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut s = stream::pending::<i32>();
@@ -236,7 +236,7 @@ impl<T> Stream for Pending<T> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 /// use std::task::{Context, Poll};
 ///
 /// # spin_on::spin_on(async {
@@ -285,7 +285,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut s = stream::repeat(7);
@@ -324,7 +324,7 @@ impl<T: Clone> Stream for Repeat<T> {
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// let mut s = stream::repeat_with(|| 7);
@@ -370,7 +370,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// let s = stream::unfold(0, |mut n| async move {
@@ -459,7 +459,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// let s = stream::try_unfold(0, |mut n| async move {
@@ -566,7 +566,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(1..=3);
@@ -594,7 +594,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![Ok(1), Ok(2), Err("error")]);
@@ -617,7 +617,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s1 = stream::iter(vec![0]);
@@ -642,7 +642,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3]);
@@ -667,7 +667,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let words = stream::iter(vec!["one", "two"]);
@@ -697,7 +697,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s1 = stream::iter(vec![1, 2, 3]);
@@ -724,7 +724,8 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::pin;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3]);
@@ -755,7 +756,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3, 4]);
@@ -782,7 +783,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec!["1", "lol", "3", "NaN", "5"]);
@@ -807,7 +808,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::repeat(7).take(2);
@@ -829,7 +830,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3, 4]);
@@ -856,7 +857,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3]);
@@ -878,7 +879,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![-1i32, 0, 1]);
@@ -909,7 +910,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![0, 1, 2, 3, 4]);
@@ -938,7 +939,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s1 = stream::iter(vec![1, 2]);
@@ -968,7 +969,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![&1, &2]);
@@ -992,7 +993,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![&1, &2]);
@@ -1016,7 +1017,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(1..=3);
@@ -1039,7 +1040,7 @@ pub trait StreamExt: Stream {
     /// Collects all items in the fallible stream into a collection.
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![Ok(1), Err(2), Ok(3)]);
@@ -1068,7 +1069,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3]);
@@ -1099,7 +1100,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3]);
@@ -1129,7 +1130,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![Ok(1), Ok(2), Ok(3)]);
@@ -1166,7 +1167,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3]);
@@ -1197,7 +1198,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::once(1).fuse();
@@ -1222,7 +1223,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2]).cycle();
@@ -1248,7 +1249,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec!['a', 'b', 'c']);
@@ -1272,7 +1273,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3, 4, 5]);
@@ -1300,7 +1301,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![0, 1, 2, 3, 4, 5, 6, 7]);
@@ -1322,7 +1323,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![1, 2, 3, 4]);
@@ -1347,7 +1348,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![11, 12, 13, 14]);
@@ -1372,7 +1373,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec!["lol", "NaN", "2", "5"]);
@@ -1394,7 +1395,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![0, 1, 2, 3, 4, 5]);
@@ -1423,7 +1424,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
@@ -1454,7 +1455,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 3, 5, 7]);
@@ -1483,7 +1484,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
@@ -1503,7 +1504,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![0, 1, 2, 3]);
@@ -1539,7 +1540,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let l = stream::iter(vec![1, 2, 3]);
@@ -1569,7 +1570,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let s = stream::iter(vec![(1, 2), (3, 4)]);
@@ -1596,7 +1597,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     /// use futures_lite::stream::{once, pending};
     ///
     /// # spin_on::spin_on(async {
@@ -1623,7 +1624,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     /// use futures_lite::stream::{once, pending};
     ///
     /// # spin_on::spin_on(async {
@@ -1651,7 +1652,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let a = stream::once(1);
@@ -1675,7 +1676,7 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::*;
+    /// use futures_lite::stream::{self, StreamExt};
     ///
     /// # spin_on::spin_on(async {
     /// let a = stream::once(1);
@@ -1702,7 +1703,7 @@ impl<S: Stream + ?Sized> StreamExt for S {}
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// // These two lines are equivalent:
 /// let s1: stream::Boxed<i32> = stream::once(7).boxed();
@@ -1716,7 +1717,7 @@ pub type Boxed<T> = Pin<Box<dyn Stream<Item = T> + Send + 'static>>;
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
+/// use futures_lite::stream::{self, StreamExt};
 ///
 /// // These two lines are equivalent:
 /// let s1: stream::BoxedLocal<i32> = stream::once(7).boxed_local();
@@ -2199,8 +2200,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
-/// use futures_lite::stream::{once, pending};
+/// use futures_lite::stream::{self, once, pending, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// assert_eq!(stream::or(once(1), pending()).next().await, Some(1));
@@ -2252,8 +2252,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use futures_lite::*;
-/// use futures_lite::stream::{once, pending};
+/// use futures_lite::stream::{self, once, pending, StreamExt};
 ///
 /// # spin_on::spin_on(async {
 /// assert_eq!(stream::race(once(1), pending()).next().await, Some(1));
