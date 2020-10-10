@@ -1,3 +1,7 @@
+# Version 1.11.1
+
+- Fix some typos.
+
 # Version 1.11.0
 
 - Add the new `prelude` module.
