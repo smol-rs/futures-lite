@@ -583,15 +583,14 @@ impl<R: AsyncRead> AsyncRead for BufReader<R> {
         // If we don't have any buffered data and we're doing a massive read
         // (larger than our internal buffer), bypass our internal buffer
         // entirely.
-        // if self.pos == self.cap && buf.len() >= self.buf.len() {
-        //     let res = ready!(self.as_mut().get_pin_mut().poll_read(cx, buf));
-        //     self.discard_buffer();
-        //     return Poll::Ready(res);
-        // }
+        if self.pos == self.cap && buf.len() >= self.buf.len() {
+            let res = ready!(self.as_mut().get_pin_mut().poll_read(cx, buf));
+            self.discard_buffer();
+            return Poll::Ready(res);
+        }
         let mut rem = ready!(self.as_mut().poll_fill_buf(cx))?;
         let nread = std::io::Read::read(&mut rem, buf)?;
         self.consume(nread);
-        // println!(">>> {} <<<", std::str::from_utf8(&buf[..buf.len()-nread]).unwrap());
         Poll::Ready(Ok(nread))
     }
 
@@ -616,7 +615,6 @@ impl<R: AsyncRead> AsyncRead for BufReader<R> {
 impl<R: AsyncRead> AsyncBufRead for BufReader<R> {
     fn poll_fill_buf<'a>(self: Pin<&'a mut Self>, cx: &mut Context<'_>) -> Poll<Result<&'a [u8]>> {
         let mut this = self.project();
-        println!("POLL_FILL_BUF");
 
         // If we've reached the end of our internal buffer then we need to fetch
         // some more data from the underlying reader.
@@ -624,10 +622,9 @@ impl<R: AsyncRead> AsyncBufRead for BufReader<R> {
         // to tell the compiler that the pos..cap slice is always valid.
         if *this.pos >= *this.cap {
             debug_assert!(*this.pos == *this.cap);
-            *this.cap = ready!(dbg!(this.inner.as_mut().poll_read(cx, this.buf)))?;
+            *this.cap = ready!(this.inner.as_mut().poll_read(cx, this.buf))?;
             *this.pos = 0;
         }
-        println!(">>> {} <<<", std::str::from_utf8(&this.buf[*this.pos..*this.cap]).unwrap());
         Poll::Ready(Ok(&this.buf[*this.pos..*this.cap]))
     }
 
@@ -1586,7 +1583,6 @@ fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
             }
         };
 
-        // println!(">>> {} <<<", std::str::from_utf8(&buf[..buf.len()-used]).unwrap());
         reader.as_mut().consume(used);
         *read += used;
 
