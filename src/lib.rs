@@ -49,22 +49,44 @@ pub mod io;
 /// # Examples
 ///
 /// ```
-/// use futures_lite::future::FutureExt;
-/// use futures_lite::ready;
-/// use std::future::Future;
+/// use futures_lite::{future, prelude::*, ready};
 /// use std::pin::Pin;
 /// use std::task::{Context, Poll};
 ///
-/// // Polls two futures and sums their results.
-/// fn poll_sum(
-///     cx: &mut Context<'_>,
-///     a: Pin<&mut impl Future<Output = i32>>,
-///     b: Pin<&mut impl Future<Output = i32>>,
-/// ) -> Poll<i32> {
-///     let x = ready!(a.poll(cx));
-///     let y = ready!(b.poll(cx));
-///     Poll::Ready(x + y)
+/// fn do_poll(cx: &mut Context<'_>) -> Poll<()> {
+///     let mut fut = future::ready(42);
+///     let fut = Pin::new(&mut fut);
+///
+///     let num = ready!(fut.poll(cx));
+///     # drop(num);
+///     // ... use num
+///
+///     Poll::Ready(())
 /// }
+/// ```
+///
+/// The `ready!` call expands to:
+///
+/// ```
+/// # #![feature(ready_macro)]
+/// #
+/// # use futures_lite::{future, prelude::*, ready};
+/// # use std::pin::Pin;
+/// # use std::task::{Context, Poll};
+/// #
+/// # fn do_poll(cx: &mut Context<'_>) -> Poll<()> {
+///     # let mut fut = future::ready(42);
+///     # let fut = Pin::new(&mut fut);
+///     #
+/// let num = match fut.poll(cx) {
+///     Poll::Ready(t) => t,
+///     Poll::Pending => return Poll::Pending,
+/// };
+///     # drop(num);
+///     # // ... use num
+///     #
+///     # Poll::Ready(())
+/// # }
 /// ```
 #[macro_export]
 macro_rules! ready {
