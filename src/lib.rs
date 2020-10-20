@@ -68,8 +68,6 @@ pub mod io;
 /// The `ready!` call expands to:
 ///
 /// ```
-/// # #![feature(ready_macro)]
-/// #
 /// # use futures_lite::{future, prelude::*, ready};
 /// # use std::pin::Pin;
 /// # use std::task::{Context, Poll};
