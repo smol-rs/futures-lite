@@ -1,3 +1,7 @@
+# Version 1.11.2
+
+- Improve docs for `ready!`.
+
 # Version 1.11.1
 
 - Fix some typos.
