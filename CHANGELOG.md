@@ -1,3 +1,7 @@
+# Version 1.11.3
+
+- Update `pin-project-lite`.
+
 # Version 1.11.2
 
 - Improve docs for `ready!`.
