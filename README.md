@@ -1,9 +1,9 @@
 # futures-lite
 
-[![Build](https://github.com/stjepang/futures-lite/workflows/Build%20and%20test/badge.svg)](
-https://github.com/stjepang/futures-lite/actions)
+[![Build](https://github.com/smol-rs/futures-lite/workflows/Build%20and%20test/badge.svg)](
+https://github.com/smol-rs/futures-lite/actions)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](
-https://github.com/stjepang/futures-lite)
+https://github.com/smol-rs/futures-lite)
 [![Cargo](https://img.shields.io/crates/v/futures-lite.svg)](
 https://crates.io/crates/futures-lite)
 [![Documentation](https://docs.rs/futures-lite/badge.svg)](
