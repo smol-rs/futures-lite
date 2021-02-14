@@ -13,7 +13,6 @@ homepage = "https://github.com/smol-rs/futures-lite"
 documentation = "https://docs.rs/futures-lite"
 keywords = ["asynchronous", "futures", "async"]
 categories = ["asynchronous", "concurrency"]
-readme = "README.md"
 
 [features]
 default = ["std"]
