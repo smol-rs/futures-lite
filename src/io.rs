@@ -1465,7 +1465,6 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// let mut reader = BufReader::new(input);
     /// let mut lines = reader.lines();
     ///
-    /// let mut line = String::new();
     /// while let Some(line) = lines.next().await {
     ///     println!("{}", line?);
     /// }
