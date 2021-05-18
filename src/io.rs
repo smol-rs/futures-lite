@@ -394,6 +394,16 @@ impl<T: AsyncRead + Unpin> std::io::Read for BlockOn<T> {
     }
 }
 
+impl<T: AsyncBufRead + Unpin> std::io::BufRead for BlockOn<T> {
+    fn fill_buf(&mut self) -> Result<&[u8]> {
+        future::block_on(self.0.fill_buf())
+    }
+
+    fn consume(&mut self, amt: usize) {
+        Pin::new(&mut self.0).consume(amt)
+    }
+}
+
 impl<T: AsyncWrite + Unpin> std::io::Write for BlockOn<T> {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         future::block_on(self.0.write(buf))
