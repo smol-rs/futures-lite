@@ -1,3 +1,7 @@
+# Version 1.11.4
+
+- Implement `BlockOn` for `AsyncBufRead`
+
 # Version 1.11.3
 
 - Update `pin-project-lite`.
