@@ -1,6 +1,6 @@
-# Version 1.11.4
+# Version 1.12.0
 
-- Implement `BlockOn` for `AsyncBufRead`
+- Implement `BufRead` for `BlockOn`
 
 # Version 1.11.3
 
