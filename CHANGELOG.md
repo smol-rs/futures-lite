@@ -1,3 +1,7 @@
+# Version 1.12.0
+
+- Implement `BufRead` for `BlockOn`
+
 # Version 1.11.3
 
 - Update `pin-project-lite`.
