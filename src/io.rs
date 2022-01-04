@@ -1681,7 +1681,7 @@ impl<R: AsyncBufRead> Stream for Lines<R> {
                 this.buf.pop();
             }
         }
-        Poll::Ready(Some(Ok(mem::replace(this.buf, String::new()))))
+        Poll::Ready(Some(Ok(mem::take(this.buf))))
     }
 }
 
@@ -1694,7 +1694,7 @@ fn read_line_internal<R: AsyncBufRead + ?Sized>(
 ) -> Poll<Result<usize>> {
     let ret = ready!(read_until_internal(reader, cx, b'\n', bytes, read));
 
-    match String::from_utf8(mem::replace(bytes, Vec::new())) {
+    match String::from_utf8(mem::take(bytes)) {
         Ok(s) => {
             debug_assert!(buf.is_empty());
             debug_assert_eq!(*read, 0);
@@ -1743,7 +1743,7 @@ impl<R: AsyncBufRead> Stream for Split<R> {
         if this.buf[this.buf.len() - 1] == *this.delim {
             this.buf.pop();
         }
-        Poll::Ready(Some(Ok(mem::replace(this.buf, vec![]))))
+        Poll::Ready(Some(Ok(mem::take(this.buf))))
     }
 }
 
@@ -2071,7 +2071,7 @@ impl<R: AsyncRead + Unpin + ?Sized> Future for ReadToStringFuture<'_, R> {
 
         let ret = ready!(read_to_end_internal(reader, cx, bytes, *start_len));
 
-        match String::from_utf8(mem::replace(bytes, Vec::new())) {
+        match String::from_utf8(mem::take(bytes)) {
             Ok(s) => {
                 debug_assert!(buf.is_empty());
                 **buf = s;
@@ -2159,7 +2159,7 @@ impl<R: AsyncRead + Unpin + ?Sized> Future for ReadExactFuture<'_, R> {
 
         while !buf.is_empty() {
             let n = ready!(Pin::new(&mut *reader).poll_read(cx, buf))?;
-            let (_, rest) = mem::replace(buf, &mut []).split_at_mut(n);
+            let (_, rest) = mem::take(buf).split_at_mut(n);
             *buf = rest;
 
             if n == 0 {
@@ -2747,7 +2747,7 @@ impl<W: AsyncWrite + Unpin + ?Sized> Future for WriteAllFuture<'_, W> {
 
         while !buf.is_empty() {
             let n = ready!(Pin::new(&mut **writer).poll_write(cx, buf))?;
-            let (_, rest) = mem::replace(buf, &[]).split_at(n);
+            let (_, rest) = mem::take(buf).split_at(n);
             *buf = rest;
 
             if n == 0 {
