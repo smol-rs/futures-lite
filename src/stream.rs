@@ -1812,7 +1812,7 @@ where
             match ready!(this.stream.as_mut().poll_next(cx)) {
                 Some(e) => this.collection.extend(Some(e)),
                 None => {
-                    return Poll::Ready(mem::replace(self.project().collection, Default::default()))
+                    return Poll::Ready(mem::take(self.project().collection))
                 }
             }
         }
@@ -1842,7 +1842,7 @@ where
         Poll::Ready(Ok(loop {
             match ready!(this.stream.as_mut().poll_next(cx)?) {
                 Some(x) => this.items.extend(Some(x)),
-                None => break mem::replace(this.items, Default::default()),
+                None => break mem::take(this.items),
             }
         }))
     }

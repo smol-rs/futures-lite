@@ -82,7 +82,7 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
             Ok(cache) => {
                 // Use the cached parker and waker.
                 let (parker, waker) = &*cache;
-                let cx = &mut Context::from_waker(&waker);
+                let cx = &mut Context::from_waker(waker);
 
                 // Keep polling until the future is ready.
                 loop {
@@ -335,9 +335,9 @@ where
     F2: Future,
 {
     Zip {
-        future1: future1,
+        future1,
+        future2,
         output1: None,
-        future2: future2,
         output2: None,
     }
 }
@@ -410,9 +410,9 @@ where
     F2: Future<Output = Result<T2, E>>,
 {
     TryZip {
-        future1: future1,
+        future1,
+        future2,
         output1: None,
-        future2: future2,
         output2: None,
     }
 }
