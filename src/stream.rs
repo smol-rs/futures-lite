@@ -1811,9 +1811,7 @@ where
         loop {
             match ready!(this.stream.as_mut().poll_next(cx)) {
                 Some(e) => this.collection.extend(Some(e)),
-                None => {
-                    return Poll::Ready(mem::take(self.project().collection))
-                }
+                None => return Poll::Ready(mem::take(self.project().collection)),
             }
         }
     }

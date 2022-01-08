@@ -6,6 +6,7 @@ authors = [
   "Contributors to futures-rs",
 ]
 edition = "2018"
+rust-version = "1.40"
 description = "Futures, streams, and async I/O combinators"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/smol-rs/futures-lite"
@@ -13,6 +14,7 @@ homepage = "https://github.com/smol-rs/futures-lite"
 documentation = "https://docs.rs/futures-lite"
 keywords = ["asynchronous", "futures", "async"]
 categories = ["asynchronous", "concurrency"]
+exclude = ["/.*"]
 
 [features]
 default = ["std"]
