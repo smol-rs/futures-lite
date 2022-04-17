@@ -23,6 +23,7 @@
 
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::needless_borrow)] // suggest code that doesn't work on MSRV
 
 // TODO: These hidden re-exports are deprecated and should eventually be removed.
 #[cfg(feature = "std")]
