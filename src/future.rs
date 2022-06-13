@@ -64,9 +64,7 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
         // Cached parker and waker for efficiency.
         static CACHE: Waker = {
             let thread = std::thread::current();
-            waker_fn(move || {
-                thread.unpark();
-            })
+            waker_fn(move || thread.unpark())
         };
     }
 
