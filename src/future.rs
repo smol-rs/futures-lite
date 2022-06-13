@@ -52,7 +52,6 @@ use core::task::{Context, Poll};
 /// ```
 #[cfg(feature = "std")]
 pub fn block_on<T>(future: impl Future<Output = T>) -> T {
-    use std::cell::RefCell;
     use std::task::Waker;
 
     use waker_fn::waker_fn;
@@ -60,48 +59,27 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
     // Pin the future on the stack.
     crate::pin!(future);
 
-    // Creates a waker that unparks the current thread it.
-    fn waker() -> Waker {
-        let thread = std::thread::current();
-        waker_fn(move || {
-            thread.unpark();
-        })
-    }
-
     thread_local! {
+        // Creates a cached waker that unparks the current thread it.
         // Cached parker and waker for efficiency.
-        static CACHE: RefCell<Waker> = RefCell::new(waker());
+        static CACHE: Waker = {
+            let thread = std::thread::current();
+            waker_fn(move || {
+                thread.unpark();
+            })
+        };
     }
 
     CACHE.with(|cache| {
-        // Try grabbing the cached parker and waker.
-        match cache.try_borrow_mut() {
-            Ok(cache) => {
-                // Use the cached parker and waker.
-                let waker = &*cache;
-                let cx = &mut Context::from_waker(waker);
+        // Use the cached waker.
+        let waker = &*cache;
+        let cx = &mut Context::from_waker(waker);
 
-                // Keep polling until the future is ready.
-                loop {
-                    match future.as_mut().poll(cx) {
-                        Poll::Ready(output) => return output,
-                        Poll::Pending => std::thread::park(),
-                    }
-                }
-            }
-            Err(_) => {
-                // Looks like this is a recursive `block_on()` call.
-                // Create a fresh parker and waker.
-                let waker = waker();
-                let cx = &mut Context::from_waker(&waker);
-
-                // Keep polling until the future is ready.
-                loop {
-                    match future.as_mut().poll(cx) {
-                        Poll::Ready(output) => return output,
-                        Poll::Pending => std::thread::park(),
-                    }
-                }
+        // Keep polling until the future is ready.
+        loop {
+            match future.as_mut().poll(cx) {
+                Poll::Ready(output) => return output,
+                Poll::Pending => std::thread::park(),
             }
         }
     })
