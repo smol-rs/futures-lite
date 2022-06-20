@@ -22,7 +22,6 @@ extern crate alloc;
 pub use core::future::Future;
 
 use core::fmt;
-use core::marker::PhantomData;
 use core::pin::Pin;
 
 use pin_project_lite::pin_project;
@@ -110,45 +109,7 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
     })
 }
 
-/// Creates a future that is always pending.
-///
-/// # Examples
-///
-/// ```no_run
-/// use futures_lite::future;
-///
-/// # spin_on::spin_on(async {
-/// future::pending::<()>().await;
-/// unreachable!();
-/// # })
-/// ```
-pub fn pending<T>() -> Pending<T> {
-    Pending {
-        _marker: PhantomData,
-    }
-}
-
-/// Future for the [`pending()`] function.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Pending<T> {
-    _marker: PhantomData<T>,
-}
-
-impl<T> Unpin for Pending<T> {}
-
-impl<T> fmt::Debug for Pending<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Pending").finish()
-    }
-}
-
-impl<T> Future for Pending<T> {
-    type Output = T;
-
-    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<T> {
-        Poll::Pending
-    }
-}
+pub use std::future::{pending, Pending};
 
 /// Polls a future just once and returns an [`Option`] with the result.
 ///
