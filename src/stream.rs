@@ -2081,7 +2081,7 @@ where
 }
 
 pin_project! {
-    /// Stream for the [`StreamExt::flat_map()`] method.
+    /// Stream for the [`StreamExt::flatten()`] method.
     #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
     pub struct Flatten<S: Stream> {
@@ -2624,7 +2624,7 @@ where
 }
 
 pin_project! {
-    /// Stream for the [`StreamExt::cycle()`] method.
+    /// Stream for the [`StreamExt::enumerate()`] method.
     #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
     pub struct Enumerate<S> {
