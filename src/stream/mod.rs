@@ -24,6 +24,9 @@ pub use futures_core::stream::Stream;
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 
+#[cfg(feature = "alloc")]
+mod unordered;
+
 use core::fmt;
 use core::future::Future;
 use core::marker::PhantomData;
@@ -32,6 +35,9 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
+
+#[cfg(feature = "alloc")]
+pub use unordered::UnorderedFutures;
 
 use crate::ready;
 
@@ -1499,6 +1505,36 @@ pub trait StreamExt: Stream {
         ForEachFuture { stream: self, f }
     }
 
+    /// Calls a closure on each item of the stream, then runs the
+    /// resulting futures concurrently.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::stream::{self, StreamExt};
+    ///
+    /// # spin_on::spin_on(async {
+    /// let mut s = stream::iter(vec![1, 2, 3]);
+    /// s.for_each_concurrent(2, |s| async move {
+    ///     println!("{}", s);
+    /// }).await;
+    /// # });
+    /// ```
+    #[cfg(feature = "alloc")]
+    fn for_each_concurrent<Fut, F>(self, f: F) -> ForEachConcurrentFuture<Fut, Self, F>
+    where
+        Self: Sized,
+        F: FnMut(Self::Item) -> Fut,
+        Fut: Future<Output = ()>,
+    {
+        ForEachConcurrentFuture {
+            stream: self,
+            f,
+            futures: UnorderedFutures::new(),
+            empty: false,
+        }
+    }
+
     /// Calls a fallible closure on each item of the stream, stopping on first error.
     ///
     /// # Examples
@@ -1531,6 +1567,50 @@ pub trait StreamExt: Stream {
         F: FnMut(Self::Item) -> Result<(), E>,
     {
         TryForEachFuture { stream: self, f }
+    }
+
+    /// Calls a fallible closure on each item of the stream, then runs the
+    /// resulting futures concurrently.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::stream::{self, StreamExt};
+    ///
+    /// # spin_on::spin_on(async {
+    /// let mut s = stream::iter(vec![0, 1, 2, 3]);
+    ///
+    /// let mut v = vec![];
+    /// let res = s
+    ///     .try_for_each(|n| {
+    ///         if n < 2 {
+    ///             v.push(n);
+    ///             Ok(())
+    ///         } else {
+    ///             Err("too big")
+    ///         }
+    ///     })
+    ///     .await;
+    ///
+    /// assert_eq!(res, Err("too big"));
+    /// # });
+    /// ```
+    #[cfg(feature = "alloc")]
+    fn try_for_each_concurrent<Fut, F>(
+        &mut self,
+        f: F,
+    ) -> TryForEachConcurrentFuture<'_, Fut, Self, F>
+    where
+        Self: Unpin,
+        F: FnMut(Self::Item) -> Fut,
+        Fut: Future<Output = ()>,
+    {
+        TryForEachConcurrentFuture {
+            stream: self,
+            f,
+            futures: UnorderedFutures::new(),
+            empty: false,
+        }
     }
 
     /// Zips up two streams into a single stream of pairs.
@@ -2942,6 +3022,129 @@ where
             match ready!(self.stream.poll_next(cx)) {
                 None => return Poll::Ready(Ok(())),
                 Some(v) => (&mut self.f)(v)?,
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// Future for the [`StreamExt::for_each_concurrent()`] method.
+    #[derive(Debug)]
+    #[cfg(feature = "alloc")]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct ForEachConcurrentFuture<Fut, S, F> {
+        #[pin]
+        stream: S,
+        f: F,
+        futures: UnorderedFutures<Fut>,
+        empty: bool,
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<Fut, S, F> Future for ForEachConcurrentFuture<Fut, S, F>
+where
+    Fut: Future<Output = ()>,
+    S: Stream,
+    F: FnMut(S::Item) -> Fut,
+{
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        let mut made_progress = false;
+
+        loop {
+            // First, poll all the futures that we're currently running.
+            if let Poll::Ready(Some(())) = this.futures.poll_next(cx) {
+                // Re-run the loop to keep polling futures.
+                made_progress = true;
+            }
+
+            // Try to get the next value from the stream.
+            if !*this.empty {
+                if let Poll::Ready(Some(fut)) = (&mut this.stream).poll_next(cx) {
+                    // We got a value, push it into the queue.
+                    this.futures.push((this.f)(fut));
+                    *this.empty = true;
+                    made_progress = true;
+                }
+            }
+
+            // If we made no progress on this iteration of the loop, return.
+            if !made_progress {
+                // If we're empty, we're done.
+                if *this.empty && this.futures.is_empty() {
+                    return Poll::Ready(());
+                }
+
+                return Poll::Pending;
+            }
+        }
+    }
+}
+
+/// Future for the `try_for_each_concurrent` method.
+#[derive(Debug)]
+#[cfg(feature = "alloc")]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct TryForEachConcurrentFuture<'a, Fut, S: ?Sized, F> {
+    stream: &'a mut S,
+    f: F,
+    futures: UnorderedFutures<Fut>,
+    empty: bool,
+}
+
+#[cfg(feature = "alloc")]
+impl<'a, Fut, S: Unpin + ?Sized, F> Unpin for TryForEachConcurrentFuture<'a, Fut, S, F> {}
+
+#[cfg(feature = "alloc")]
+impl<'a, Fut, S, F, E> Future for TryForEachConcurrentFuture<'a, Fut, S, F>
+where
+    Fut: Future<Output = Result<(), E>>,
+    S: Stream + Unpin + ?Sized,
+    F: FnMut(S::Item) -> Fut,
+{
+    type Output = Result<(), E>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut made_progress = false;
+
+        loop {
+            // First, poll all the futures that we're currently running.
+            if let Poll::Ready(Some(res)) = self.futures.poll_next(cx) {
+                res?;
+
+                // Re-run the loop to keep polling futures.
+                made_progress = true;
+            }
+
+            // Try to get the next value from the stream.
+            if !self.empty {
+                // Destructure it to keep the borrow checker happy.
+                let Self {
+                    ref mut stream,
+                    ref mut f,
+                    ref mut empty,
+                    ref mut futures,
+                } = &mut *self;
+
+                if let Poll::Ready(Some(fut)) = stream.poll_next(cx) {
+                    // We got a value, push it into the queue.
+                    futures.push((f)(fut));
+                    *empty = true;
+                    made_progress = true;
+                }
+            }
+
+            // If we made no progress on this iteration of the loop, return.
+            if !made_progress {
+                // If we're empty, we're done.
+                if self.empty && self.futures.is_empty() {
+                    return Poll::Ready(Ok(()));
+                }
+
+                return Poll::Pending;
             }
         }
     }
