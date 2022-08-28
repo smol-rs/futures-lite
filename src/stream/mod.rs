@@ -1515,7 +1515,7 @@ pub trait StreamExt: Stream {
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
-    /// s.for_each_concurrent(2, |s| async move {
+    /// s.for_each_concurrent(|s| async move {
     ///     println!("{}", s);
     /// }).await;
     /// # });
@@ -3055,6 +3055,11 @@ where
         let mut made_progress = false;
 
         loop {
+            // If we're empty, we're done.
+            if *this.empty && this.futures.is_empty() {
+                return Poll::Ready(());
+            }
+
             // First, poll all the futures that we're currently running.
             if let Poll::Ready(Some(())) = this.futures.poll_next(cx) {
                 // Re-run the loop to keep polling futures.
@@ -3073,11 +3078,6 @@ where
 
             // If we made no progress on this iteration of the loop, return.
             if !made_progress {
-                // If we're empty, we're done.
-                if *this.empty && this.futures.is_empty() {
-                    return Poll::Ready(());
-                }
-
                 return Poll::Pending;
             }
         }
@@ -3111,6 +3111,11 @@ where
         let mut made_progress = false;
 
         loop {
+            // If we're empty, we're done.
+            if self.empty && self.futures.is_empty() {
+                return Poll::Ready(Ok(()));
+            }
+
             // First, poll all the futures that we're currently running.
             if let Poll::Ready(Some(res)) = self.futures.poll_next(cx) {
                 res?;
@@ -3139,11 +3144,6 @@ where
 
             // If we made no progress on this iteration of the loop, return.
             if !made_progress {
-                // If we're empty, we're done.
-                if self.empty && self.futures.is_empty() {
-                    return Poll::Ready(Ok(()));
-                }
-
                 return Poll::Pending;
             }
         }
