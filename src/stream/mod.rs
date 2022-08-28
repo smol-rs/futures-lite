@@ -3068,10 +3068,17 @@ where
 
             // Try to get the next value from the stream.
             if !*this.empty {
-                if let Poll::Ready(Some(fut)) = (&mut this.stream).poll_next(cx) {
-                    // We got a value, push it into the queue.
-                    this.futures.push((this.f)(fut));
-                    *this.empty = true;
+                if let Poll::Ready(value) = (&mut this.stream).poll_next(cx) {
+                    match value {
+                        Some(value) => {
+                            // We got a value, push it into the queue.
+                            this.futures.push((this.f)(value));
+                        }
+                        None => {
+                            *this.empty = true;
+                        }
+                    }
+
                     made_progress = true;
                 }
             }
@@ -3118,6 +3125,7 @@ where
 
             // First, poll all the futures that we're currently running.
             if let Poll::Ready(Some(res)) = self.futures.poll_next(cx) {
+                // Propagate the error if we got one.
                 res?;
 
                 // Re-run the loop to keep polling futures.
@@ -3134,10 +3142,17 @@ where
                     ref mut futures,
                 } = &mut *self;
 
-                if let Poll::Ready(Some(fut)) = stream.poll_next(cx) {
-                    // We got a value, push it into the queue.
-                    futures.push((f)(fut));
-                    *empty = true;
+                if let Poll::Ready(value) = stream.poll_next(cx) {
+                    match value {
+                        Some(value) => {
+                            // We got a value, push it into the queue.
+                            futures.push((f)(value));
+                        }
+                        None => {
+                            *empty = true;
+                        }
+                    }
+
                     made_progress = true;
                 }
             }
