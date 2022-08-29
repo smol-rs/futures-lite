@@ -202,10 +202,10 @@ fn container_waker(state: &Arc<AtomicBool>, cx: &mut Context<'_>) -> Waker {
 
 #[cfg(test)]
 mod tests {
-    use super::UnorderedFutures;
-    use crate::stream::StreamExt;
     #[cfg(not(feature = "std"))]
     use super::alloc::vec::Vec;
+    use super::UnorderedFutures;
+    use crate::stream::StreamExt;
 
     // Make sure the call is tail-optimized so we don't hit the stack limit.
     #[test]
