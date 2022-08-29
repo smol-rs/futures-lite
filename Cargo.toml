@@ -21,8 +21,8 @@ exclude = ["/.*"]
 
 [features]
 default = ["std"]
-std = ["alloc", "fastrand", "futures-io", "parking", "memchr", "waker-fn"]
-alloc = []
+std = ["alloc", "fastrand", "futures-io", "parking", "memchr"]
+alloc = ["waker-fn"]
 
 [dependencies]
 fastrand = { version = "1.3.4", optional = true }

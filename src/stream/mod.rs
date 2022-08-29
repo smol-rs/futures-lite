@@ -3030,7 +3030,7 @@ where
 #[cfg(feature = "alloc")]
 pin_project! {
     /// Future for the [`StreamExt::for_each_concurrent()`] method.
-    #[derive(Debug)] 
+    #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct ForEachConcurrentFuture<Fut, S, F> {
         #[pin]

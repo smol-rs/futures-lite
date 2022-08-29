@@ -63,7 +63,7 @@ pin_project! {
 /// Type alias to make the code more readable.
 type Link<Fut> = Option<Pin<Box<Container<Fut>>>>;
 
-impl<Fut: Future> UnorderedFutures<Fut> {
+impl<Fut> UnorderedFutures<Fut> {
     /// Creates a new, empty `UnorderedFutures`.
     pub const fn new() -> UnorderedFutures<Fut> {
         UnorderedFutures {
@@ -81,7 +81,9 @@ impl<Fut: Future> UnorderedFutures<Fut> {
     pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
+}
 
+impl<Fut: Future> UnorderedFutures<Fut> {
     /// Adds a future to the list.
     pub fn push(&mut self, future: Fut) {
         let mut container = Container::new(future);
