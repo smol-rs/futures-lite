@@ -28,14 +28,13 @@
 #[cfg(feature = "std")]
 extern crate std;
 
-// TODO: These hidden re-exports are deprecated and should eventually be removed.
 #[cfg(feature = "std")]
-#[doc(hidden)]
+#[doc(no_inline)]
 pub use crate::io::{
     AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite,
     AsyncWriteExt,
 };
-#[doc(hidden)]
+#[doc(no_inline)]
 pub use crate::{
     future::{Future, FutureExt},
     stream::{Stream, StreamExt},
