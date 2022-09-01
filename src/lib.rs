@@ -22,11 +22,8 @@
 //! ```
 
 #![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::needless_borrow)] // suggest code that doesn't work on MSRV
-
-#[cfg(feature = "std")]
-extern crate std;
 
 #[cfg(feature = "std")]
 #[doc(no_inline)]
