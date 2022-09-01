@@ -54,6 +54,7 @@ use core::task::{Context, Poll};
 pub fn block_on<T>(future: impl Future<Output = T>) -> T {
     use std::cell::RefCell;
     use std::task::Waker;
+    use std::thread_local;
 
     use parking::Parker;
     use waker_fn::waker_fn;
