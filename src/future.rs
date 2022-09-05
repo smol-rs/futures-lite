@@ -150,6 +150,58 @@ impl<T> Future for Pending<T> {
     }
 }
 
+/// Creates a future that gets the waker being used to drive the current task.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::future;
+/// use std::task::Waker;
+/// use std::thread;
+/// use std::time::Duration;
+///
+/// // Very simple, inefficient implementation of an asynchronous `time::sleep` equivalent.
+/// fn wake_after_duration(waker: Waker, duration: Duration) {
+///     thread::spawn(move || {
+///         thread::sleep(duration);
+///         waker.wake();
+///     });
+/// }
+///
+/// # spin_on::spin_on(async {
+/// // Wait for one second.
+/// let waker = future::waker().await;
+/// println!("This timer will wait for one second.");
+/// wake_after_duration(waker, Duration::from_secs(1));
+/// println!("We finished waiting.");
+/// # });
+/// ```
+pub fn waker() -> Waker {
+    Waker { _private: () }
+}
+
+/// Future for the [`waker()`] function.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct Waker {
+    _private: (),
+}
+
+impl Unpin for Waker {}
+
+impl fmt::Debug for Waker {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Waker").finish()
+    }
+}
+
+impl Future for Waker {
+    type Output = core::task::Waker;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(cx.waker().clone())
+    }
+}
+
 /// Polls a future just once and returns an [`Option`] with the result.
 ///
 /// # Examples
