@@ -638,7 +638,7 @@ impl<F: Future + UnwindSafe> Future for CatchUnwind<F> {
 /// use futures_lite::{future, prelude::*};
 ///
 /// # spin_on::spin_on(async {
-/// let mut stream = future::into_stream(async { 1 });
+/// let mut stream = Box::pin(future::into_stream(async { 1 }));
 /// assert_eq!(stream.next().await, Some(1));
 /// assert_eq!(stream.next().await, None);
 /// # });
@@ -808,7 +808,7 @@ pub trait FutureExt: Future {
     /// use futures_lite::{future, prelude::*};
     ///
     /// # spin_on::spin_on(async {
-    /// let mut stream = async { 1 }.into_stream();
+    /// let mut stream = Box::pin(async { 1 }.into_stream());
     /// assert_eq!(stream.next().await, Some(1));
     /// assert_eq!(stream.next().await, None);
     /// # });
