@@ -799,27 +799,6 @@ pub trait FutureExt: Future {
         CatchUnwind { inner: self }
     }
 
-    /// Creates a stream that invokes the given future as its first item, and then
-    /// produces no more items.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use futures_lite::{future, prelude::*};
-    ///
-    /// # spin_on::spin_on(async {
-    /// let mut stream = Box::pin(async { 1 }.into_stream());
-    /// assert_eq!(stream.next().await, Some(1));
-    /// assert_eq!(stream.next().await, None);
-    /// # });
-    /// ```
-    fn into_stream(self) -> IntoStream<Self>
-    where
-        Self: Sized,
-    {
-        IntoStream { future: Some(self) }
-    }
-
     /// Boxes the future and changes its type to `dyn Future + Send + 'a`.
     ///
     /// # Examples
