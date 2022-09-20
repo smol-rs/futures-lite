@@ -548,6 +548,53 @@ where
     }
 }
 
+/// Creates a stream that invokes the given future as its first item, and then
+/// produces no more items.
+///
+/// # Example
+///
+/// ```
+/// use futures_lite::{stream, prelude::*};
+///
+/// # spin_on::spin_on(async {
+/// let mut stream = Box::pin(stream::once_future(async { 1 }));
+/// assert_eq!(stream.next().await, Some(1));
+/// assert_eq!(stream.next().await, None);
+/// # });
+/// ```
+pub fn once_future<F: Future>(future: F) -> OnceFuture<F> {
+    OnceFuture {
+        future: Some(future),
+    }
+}
+
+pin_project! {
+    /// Stream for the [`once_future()`] method.
+    #[derive(Debug)]
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
+    pub struct OnceFuture<F> {
+        #[pin]
+        future: Option<F>,
+    }
+}
+
+impl<F: Future> Stream for OnceFuture<F> {
+    type Item = F::Output;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        match this.future.as_mut().as_pin_mut().map(|f| f.poll(cx)) {
+            Some(Poll::Ready(t)) => {
+                this.future.set(None);
+                Poll::Ready(Some(t))
+            }
+            Some(Poll::Pending) => Poll::Pending,
+            None => Poll::Ready(None),
+        }
+    }
+}
+
 /// Extension trait for [`Stream`].
 pub trait StreamExt: Stream {
     /// A convenience for calling [`Stream::poll_next()`] on `!`[`Unpin`] types.
