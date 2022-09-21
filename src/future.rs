@@ -25,8 +25,6 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::pin::Pin;
 
-use futures_core::Stream;
-
 use pin_project_lite::pin_project;
 
 #[cfg(feature = "std")]
