@@ -1457,8 +1457,8 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     {
         ReadLineFuture {
             reader: self,
+            bytes: mem::take(buf).into_bytes(),
             buf,
-            bytes: Vec::new(),
             read: 0,
         }
     }
