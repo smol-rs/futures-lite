@@ -883,6 +883,12 @@ impl<W: AsyncWrite> BufWriter<W> {
         &self.buf
     }
 
+    /// Returns a mutable reference to the internal buffer.
+    /// This can be useful sometimes when trying to reduce the amount of copies.
+    pub fn buffer_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.buf
+    }
+
     /// Flush the buffer.
     fn poll_flush_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let mut this = self.project();
