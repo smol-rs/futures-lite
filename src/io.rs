@@ -200,7 +200,6 @@ impl<T> AssertAsync<T> {
 }
 
 impl<T: std::io::Read> AsyncRead for AssertAsync<T> {
-    #[inline]
     fn poll_read(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -214,7 +213,6 @@ impl<T: std::io::Read> AsyncRead for AssertAsync<T> {
         }
     }
 
-    #[inline]
     fn poll_read_vectored(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -230,7 +228,6 @@ impl<T: std::io::Read> AsyncRead for AssertAsync<T> {
 }
 
 impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
-    #[inline]
     fn poll_write(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -244,7 +241,6 @@ impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
         }
     }
 
-    #[inline]
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -258,7 +254,6 @@ impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
         }
     }
 
-    #[inline]
     fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match self.0.flush() {
@@ -268,14 +263,12 @@ impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
         }
     }
 
-    #[inline]
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.poll_flush(cx)
     }
 }
 
 impl<T: std::io::Seek> AsyncSeek for AssertAsync<T> {
-    #[inline]
     fn poll_seek(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -381,6 +374,7 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     ///
     /// let async_reader = AsyncAsSync::new(&mut context, reader);
     /// ```
+    #[inline]
     pub fn new(context: &'r mut Context<'ctx>, io: T) -> Self {
         AsyncAsSync { context, inner: io }
     }
@@ -401,6 +395,7 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let async_reader = AsyncAsSync::new(&mut context, reader);
     /// let r = async_reader.get_ref();
     /// ```
+    #[inline]
     pub fn get_ref(&self) -> &T {
         &self.inner
     }
@@ -421,6 +416,7 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
     /// let r = async_reader.get_mut();
     /// ```
+    #[inline]
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.inner
     }
@@ -441,6 +437,7 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
     /// let ctx = async_reader.get_context();
     /// ```
+    #[inline]
     pub fn get_context(&mut self) -> &mut Context<'ctx> {
         self.context
     }
@@ -464,6 +461,7 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     ///
     /// async_reader.set_context(&mut context);
     /// ```
+    #[inline]
     pub fn set_context(&mut self, context: &'r mut Context<'ctx>) {
         self.context = context;
     }
@@ -485,7 +483,8 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
     /// let (reader, context) = async_reader.into_inner();
     /// ```
-    pub fn into_inner(self) -> (&'r mut Context<'ctx>, T) {
+    #[inline]
+    pub fn into_parts(self) -> (&'r mut Context<'ctx>, T) {
         (self.context, self.inner)
     }
 
@@ -505,7 +504,8 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
     /// let reader = async_reader.into_inner_io();
     /// ```
-    pub fn into_inner_io(self) -> T {
+    #[inline]
+    pub fn into_inner(self) -> T {
         self.inner
     }
 
@@ -525,6 +525,7 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
     /// async_reader.close().unwrap();
     /// ```
+    #[inline]
     pub fn close(&mut self) -> Result<()>
     where
         T: AsyncWrite + Unpin,
@@ -533,7 +534,22 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     }
 
     /// Poll this `AsyncAsSync` for some function.
-    fn poll_with<R>(
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::{prelude::*, AsyncAsSync};
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
+    /// let r = async_reader.poll_with(|io, cx| io.poll_read(cx, &mut [0; 1024]))?;
+    /// assert_eq!(r, Ok(5));
+    /// ```
+    #[inline]
+    pub fn poll_with<R>(
         &mut self,
         f: impl FnOnce(Pin<&mut T>, &mut Context<'_>) -> Poll<Result<R>>,
     ) -> Result<R>
@@ -548,54 +564,64 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
 }
 
 impl<T: AsyncRead + Unpin> std::io::Read for AsyncAsSync<'_, '_, T> {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.poll_with(|io, cx| io.poll_read(cx, buf))
     }
 
+    #[inline]
     fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> Result<usize> {
         self.poll_with(|io, cx| io.poll_read_vectored(cx, bufs))
     }
 }
 
 impl<T: AsyncWrite + Unpin> std::io::Write for AsyncAsSync<'_, '_, T> {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.poll_with(|io, cx| io.poll_write(cx, buf))
     }
 
+    #[inline]
     fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> Result<usize> {
         self.poll_with(|io, cx| io.poll_write_vectored(cx, bufs))
     }
 
+    #[inline]
     fn flush(&mut self) -> Result<()> {
         self.poll_with(|io, cx| io.poll_flush(cx))
     }
 }
 
 impl<T: AsyncSeek + Unpin> std::io::Seek for AsyncAsSync<'_, '_, T> {
+    #[inline]
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.poll_with(|io, cx| io.poll_seek(cx, pos))
     }
 }
 
 impl<T> AsRef<T> for AsyncAsSync<'_, '_, T> {
+    #[inline]
     fn as_ref(&self) -> &T {
         &self.inner
     }
 }
 
 impl<T> AsMut<T> for AsyncAsSync<'_, '_, T> {
+    #[inline]
     fn as_mut(&mut self) -> &mut T {
         &mut self.inner
     }
 }
 
 impl<T> Borrow<T> for AsyncAsSync<'_, '_, T> {
+    #[inline]
     fn borrow(&self) -> &T {
         &self.inner
     }
 }
 
 impl<T> BorrowMut<T> for AsyncAsSync<'_, '_, T> {
+    #[inline]
     fn borrow_mut(&mut self) -> &mut T {
         &mut self.inner
     }
