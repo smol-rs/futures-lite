@@ -481,7 +481,7 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let mut context = Context::from_waker(&waker);
     ///
     /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let (reader, context) = async_reader.into_inner();
+    /// let (reader, context) = async_reader.into_parts();
     /// ```
     #[inline]
     pub fn into_parts(self) -> (&'r mut Context<'ctx>, T) {
@@ -502,7 +502,7 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let mut context = Context::from_waker(&waker);
     ///
     /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let reader = async_reader.into_inner_io();
+    /// let reader = async_reader.into_inner();
     /// ```
     #[inline]
     pub fn into_inner(self) -> T {
@@ -538,15 +538,17 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// # Examples
     ///
     /// ```
-    /// use futures_lite::io::{prelude::*, AsyncAsSync};
+    /// use futures_lite::io::{AsyncAsSync, AsyncRead};
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
     ///
     /// let reader: &[u8] = b"hello";
     /// let waker = waker_fn(|| {});
     /// let mut context = Context::from_waker(&waker);
     ///
     /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let r = async_reader.poll_with(|io, cx| io.poll_read(cx, &mut [0; 1024]))?;
-    /// assert_eq!(r, Ok(5));
+    /// let r = async_reader.poll_with(|io, cx| io.poll_read(cx, &mut [0; 1024]));
+    /// assert_eq!(r.unwrap(), 5);
     /// ```
     #[inline]
     pub fn poll_with<R>(
