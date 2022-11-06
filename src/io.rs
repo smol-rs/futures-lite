@@ -352,10 +352,10 @@ impl<T: std::io::Seek> AsyncSeek for AssertAsync<T> {
 #[derive(Debug)]
 pub struct AsyncAsSync<'r, 'ctx, T> {
     /// The context we are using to poll the future.
-    context: &'r mut Context<'ctx>,
+    pub context: &'r mut Context<'ctx>,
 
     /// The actual reader/writer we are wrapping.
-    inner: T,
+    pub inner: T,
 }
 
 impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
@@ -377,136 +377,6 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     #[inline]
     pub fn new(context: &'r mut Context<'ctx>, io: T) -> Self {
         AsyncAsSync { context, inner: io }
-    }
-
-    /// Gets a reference to the inner I/O handle.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use futures_lite::io::AsyncAsSync;
-    /// use std::task::Context;
-    /// use waker_fn::waker_fn;
-    ///
-    /// let reader: &[u8] = b"hello";
-    /// let waker = waker_fn(|| {});
-    /// let mut context = Context::from_waker(&waker);
-    ///
-    /// let async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let r = async_reader.get_ref();
-    /// ```
-    #[inline]
-    pub fn get_ref(&self) -> &T {
-        &self.inner
-    }
-
-    /// Gets a mutable reference to the inner I/O handle.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use futures_lite::io::AsyncAsSync;
-    /// use std::task::Context;
-    /// use waker_fn::waker_fn;
-    ///
-    /// let reader: &[u8] = b"hello";
-    /// let waker = waker_fn(|| {});
-    /// let mut context = Context::from_waker(&waker);
-    ///
-    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let r = async_reader.get_mut();
-    /// ```
-    #[inline]
-    pub fn get_mut(&mut self) -> &mut T {
-        &mut self.inner
-    }
-
-    /// Gets a mutable reference to the asynchronous context.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use futures_lite::io::AsyncAsSync;
-    /// use std::task::Context;
-    /// use waker_fn::waker_fn;
-    ///
-    /// let reader: &[u8] = b"hello";
-    /// let waker = waker_fn(|| {});
-    /// let mut context = Context::from_waker(&waker);
-    ///
-    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let ctx = async_reader.get_context();
-    /// ```
-    #[inline]
-    pub fn get_context(&mut self) -> &mut Context<'ctx> {
-        self.context
-    }
-
-    /// Set the asynchronous context.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use futures_lite::io::AsyncAsSync;
-    /// use std::task::Context;
-    /// use waker_fn::waker_fn;
-    ///
-    /// let reader: &[u8] = b"hello";
-    /// let waker = waker_fn(|| {});
-    /// let mut context = Context::from_waker(&waker);
-    ///
-    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let waker = waker_fn(|| {});
-    /// let mut context = Context::from_waker(&waker);
-    ///
-    /// async_reader.set_context(&mut context);
-    /// ```
-    #[inline]
-    pub fn set_context(&mut self, context: &'r mut Context<'ctx>) {
-        self.context = context;
-    }
-
-    /// Unwraps this `AsyncAsSync`, returning the underlying I/O handle and
-    /// asynchronous context.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use futures_lite::io::AsyncAsSync;
-    /// use std::task::Context;
-    /// use waker_fn::waker_fn;
-    ///
-    /// let reader: &[u8] = b"hello";
-    /// let waker = waker_fn(|| {});
-    /// let mut context = Context::from_waker(&waker);
-    ///
-    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let (reader, context) = async_reader.into_parts();
-    /// ```
-    #[inline]
-    pub fn into_parts(self) -> (&'r mut Context<'ctx>, T) {
-        (self.context, self.inner)
-    }
-
-    /// Unwraps this `AsyncAsSync`, returning the underlying I/O handle.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use futures_lite::io::AsyncAsSync;
-    /// use std::task::Context;
-    /// use waker_fn::waker_fn;
-    ///
-    /// let reader: &[u8] = b"hello";
-    /// let waker = waker_fn(|| {});
-    /// let mut context = Context::from_waker(&waker);
-    ///
-    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
-    /// let reader = async_reader.into_inner();
-    /// ```
-    #[inline]
-    pub fn into_inner(self) -> T {
-        self.inner
     }
 
     /// Attempt to shutdown the I/O handle.
