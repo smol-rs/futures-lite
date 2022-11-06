@@ -145,6 +145,7 @@ impl<T> AssertAsync<T> {
     ///
     /// let async_reader = AssertAsync::new(reader);
     /// ```
+    #[inline(always)]
     pub fn new(io: T) -> Self {
         AssertAsync(io)
     }
@@ -161,6 +162,7 @@ impl<T> AssertAsync<T> {
     /// let async_reader = AssertAsync::new(reader);
     /// let r = async_reader.get_ref();
     /// ```
+    #[inline(always)]
     pub fn get_ref(&self) -> &T {
         &self.0
     }
@@ -177,6 +179,7 @@ impl<T> AssertAsync<T> {
     /// let mut async_reader = AssertAsync::new(reader);
     /// let r = async_reader.get_mut();
     /// ```
+    #[inline(always)]
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.0
     }
@@ -193,92 +196,82 @@ impl<T> AssertAsync<T> {
     /// let async_reader = AssertAsync::new(reader);
     /// let inner = async_reader.into_inner();
     /// ```
+    #[inline(always)]
     pub fn into_inner(self) -> T {
         self.0
     }
 }
 
+fn assert_async_wrapio<F, T>(mut f: F) -> Poll<std::io::Result<T>>
+where
+    F: FnMut() -> std::io::Result<T>,
+{
+    loop {
+        match f() {
+            Err(err) if err.kind() == ErrorKind::Interrupted => {}
+            res => return Poll::Ready(res),
+        }
+    }
+}
+
 impl<T: std::io::Read> AsyncRead for AssertAsync<T> {
+    #[inline]
     fn poll_read(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        loop {
-            match self.0.read(buf) {
-                Err(err) if err.kind() == ErrorKind::Interrupted => {}
-                res => return Poll::Ready(res),
-            }
-        }
+        assert_async_wrapio(move || self.0.read(buf))
     }
 
+    #[inline]
     fn poll_read_vectored(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
         bufs: &mut [IoSliceMut<'_>],
     ) -> Poll<Result<usize>> {
-        loop {
-            match self.0.read_vectored(bufs) {
-                Err(err) if err.kind() == ErrorKind::Interrupted => {}
-                res => return Poll::Ready(res),
-            }
-        }
+        assert_async_wrapio(move || self.0.read_vectored(bufs))
     }
 }
 
 impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
+    #[inline]
     fn poll_write(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize>> {
-        loop {
-            match self.0.write(buf) {
-                Err(err) if err.kind() == ErrorKind::Interrupted => {}
-                res => return Poll::Ready(res),
-            }
-        }
+        assert_async_wrapio(move || self.0.write(buf))
     }
 
+    #[inline]
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
         bufs: &[IoSlice<'_>],
     ) -> Poll<Result<usize>> {
-        loop {
-            match self.0.write_vectored(bufs) {
-                Err(err) if err.kind() == ErrorKind::Interrupted => {}
-                res => return Poll::Ready(res),
-            }
-        }
+        assert_async_wrapio(move || self.0.write_vectored(bufs))
     }
 
+    #[inline]
     fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match self.0.flush() {
-                Err(err) if err.kind() == ErrorKind::Interrupted => {}
-                res => return Poll::Ready(res),
-            }
-        }
+        assert_async_wrapio(move || self.0.flush())
     }
 
+    #[inline]
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.poll_flush(cx)
     }
 }
 
 impl<T: std::io::Seek> AsyncSeek for AssertAsync<T> {
+    #[inline]
     fn poll_seek(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
         pos: SeekFrom,
     ) -> Poll<Result<u64>> {
-        loop {
-            match self.0.seek(pos) {
-                Err(err) if err.kind() == ErrorKind::Interrupted => {}
-                res => return Poll::Ready(res),
-            }
-        }
+        assert_async_wrapio(move || self.0.seek(pos))
     }
 }
 
