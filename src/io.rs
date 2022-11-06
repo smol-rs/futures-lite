@@ -20,6 +20,7 @@ pub use std::io::{Error, ErrorKind, Result, SeekFrom};
 #[doc(no_inline)]
 pub use futures_io::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncWrite};
 
+use std::borrow::{Borrow, BorrowMut};
 use std::cmp;
 use std::fmt;
 use std::future::Future;
@@ -199,6 +200,7 @@ impl<T> AssertAsync<T> {
 }
 
 impl<T: std::io::Read> AsyncRead for AssertAsync<T> {
+    #[inline]
     fn poll_read(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -212,6 +214,7 @@ impl<T: std::io::Read> AsyncRead for AssertAsync<T> {
         }
     }
 
+    #[inline]
     fn poll_read_vectored(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -227,6 +230,7 @@ impl<T: std::io::Read> AsyncRead for AssertAsync<T> {
 }
 
 impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
+    #[inline]
     fn poll_write(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -240,6 +244,7 @@ impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
         }
     }
 
+    #[inline]
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -253,6 +258,7 @@ impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
         }
     }
 
+    #[inline]
     fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match self.0.flush() {
@@ -262,12 +268,14 @@ impl<T: std::io::Write> AsyncWrite for AssertAsync<T> {
         }
     }
 
+    #[inline]
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.poll_flush(cx)
     }
 }
 
 impl<T: std::io::Seek> AsyncSeek for AssertAsync<T> {
+    #[inline]
     fn poll_seek(
         mut self: Pin<&mut Self>,
         _: &mut Context<'_>,
@@ -279,6 +287,317 @@ impl<T: std::io::Seek> AsyncSeek for AssertAsync<T> {
                 res => return Poll::Ready(res),
             }
         }
+    }
+}
+
+/// A wrapper around a type that implements `AsyncRead` or `AsyncWrite` that converts `Pending`
+/// polls to `WouldBlock` errors.
+///
+/// This wrapper can be used as a compatibility layer between `AsyncRead` and `Read`, for types
+/// that take `Read` as a parameter.
+///
+/// # Examples
+///
+/// ```
+/// use std::io::Read;
+/// use std::task::{Poll, Context};
+///
+/// fn poll_for_io(cx: &mut Context<'_>) -> Poll<usize> {
+///     // Assume we have a library that's built around `Read` and `Write` traits.
+///     use cooltls::Session;
+///
+///     // We want to use it with our writer that implements `AsyncWrite`.
+///     let writer = Stream::new();
+///
+///     // First, we wrap our `Writer` with `AsyncAsSync` to convert `Pending` polls to `WouldBlock`.
+///     use futures_lite::io::AsyncAsSync;
+///     let writer = AsyncAsSync::new(cx, writer);
+///
+///     // Now, we can use it with `cooltls`.
+///     let mut session = Session::new(writer);
+///
+///     // Match on the result of `read()` and translate it to poll.
+///     match session.read(&mut [0; 1024]) {
+///         Ok(n) => Poll::Ready(n),
+///         Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => Poll::Pending,
+///         Err(err) => panic!("unexpected error: {}", err),
+///     }
+/// }
+///
+/// // Usually, poll-based functions are best wrapped using `poll_fn`.
+/// use futures_lite::future::poll_fn;
+/// # futures_lite::future::block_on(async {
+/// poll_fn(|cx| poll_for_io(cx)).await;
+/// # });
+/// # struct Stream;
+/// # impl Stream {
+/// #     fn new() -> Stream {
+/// #         Stream
+/// #     }
+/// # }
+/// # impl futures_lite::io::AsyncRead for Stream {
+/// #     fn poll_read(self: std::pin::Pin<&mut Self>, _: &mut Context<'_>, _: &mut [u8]) -> Poll<std::io::Result<usize>> {
+/// #         Poll::Ready(Ok(0))
+/// #     }
+/// # }
+/// # mod cooltls {
+/// #     pub struct Session<W> {
+/// #         reader: W,
+/// #     }
+/// #     impl<W> Session<W> {
+/// #         pub fn new(reader: W) -> Session<W> {
+/// #             Session { reader }
+/// #         }
+/// #     }
+/// #     impl<W: std::io::Read> std::io::Read for Session<W> {
+/// #         fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+/// #             self.reader.read(buf)
+/// #         }
+/// #     }
+/// # }
+/// ```
+#[derive(Debug)]
+pub struct AsyncAsSync<'r, 'ctx, T> {
+    /// The context we are using to poll the future.
+    context: &'r mut Context<'ctx>,
+
+    /// The actual reader/writer we are wrapping.
+    inner: T,
+}
+
+impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
+    /// Wraps an I/O handle implementing [`AsyncRead`] or [`AsyncWrite`] traits.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::AsyncAsSync;
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let async_reader = AsyncAsSync::new(&mut context, reader);
+    /// ```
+    pub fn new(context: &'r mut Context<'ctx>, io: T) -> Self {
+        AsyncAsSync { context, inner: io }
+    }
+
+    /// Gets a reference to the inner I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::AsyncAsSync;
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let async_reader = AsyncAsSync::new(&mut context, reader);
+    /// let r = async_reader.get_ref();
+    /// ```
+    pub fn get_ref(&self) -> &T {
+        &self.inner
+    }
+
+    /// Gets a mutable reference to the inner I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::AsyncAsSync;
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
+    /// let r = async_reader.get_mut();
+    /// ```
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+
+    /// Gets a mutable reference to the asynchronous context.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::AsyncAsSync;
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
+    /// let ctx = async_reader.get_context();
+    /// ```
+    pub fn get_context(&mut self) -> &mut Context<'ctx> {
+        self.context
+    }
+
+    /// Set the asynchronous context.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::AsyncAsSync;
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// async_reader.set_context(&mut context);
+    /// ```
+    pub fn set_context(&mut self, context: &'r mut Context<'ctx>) {
+        self.context = context;
+    }
+
+    /// Unwraps this `AsyncAsSync`, returning the underlying I/O handle and
+    /// asynchronous context.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::AsyncAsSync;
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
+    /// let (reader, context) = async_reader.into_inner();
+    /// ```
+    pub fn into_inner(self) -> (&'r mut Context<'ctx>, T) {
+        (self.context, self.inner)
+    }
+
+    /// Unwraps this `AsyncAsSync`, returning the underlying I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::AsyncAsSync;
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
+    ///
+    /// let reader: &[u8] = b"hello";
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
+    /// let reader = async_reader.into_inner_io();
+    /// ```
+    pub fn into_inner_io(self) -> T {
+        self.inner
+    }
+
+    /// Attempt to shutdown the I/O handle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::io::AsyncAsSync;
+    /// use std::task::Context;
+    /// use waker_fn::waker_fn;
+    ///
+    /// let reader: Vec<u8> = b"hello".to_vec();
+    /// let waker = waker_fn(|| {});
+    /// let mut context = Context::from_waker(&waker);
+    ///
+    /// let mut async_reader = AsyncAsSync::new(&mut context, reader);
+    /// async_reader.close().unwrap();
+    /// ```
+    pub fn close(&mut self) -> Result<()>
+    where
+        T: AsyncWrite + Unpin,
+    {
+        self.poll_with(|io, cx| io.poll_close(cx))
+    }
+
+    /// Poll this `AsyncAsSync` for some function.
+    fn poll_with<R>(
+        &mut self,
+        f: impl FnOnce(Pin<&mut T>, &mut Context<'_>) -> Poll<Result<R>>,
+    ) -> Result<R>
+    where
+        T: Unpin,
+    {
+        match f(Pin::new(&mut self.inner), self.context) {
+            Poll::Ready(res) => res,
+            Poll::Pending => Err(ErrorKind::WouldBlock.into()),
+        }
+    }
+}
+
+impl<T: AsyncRead + Unpin> std::io::Read for AsyncAsSync<'_, '_, T> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.poll_with(|io, cx| io.poll_read(cx, buf))
+    }
+
+    fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> Result<usize> {
+        self.poll_with(|io, cx| io.poll_read_vectored(cx, bufs))
+    }
+}
+
+impl<T: AsyncWrite + Unpin> std::io::Write for AsyncAsSync<'_, '_, T> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        self.poll_with(|io, cx| io.poll_write(cx, buf))
+    }
+
+    fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> Result<usize> {
+        self.poll_with(|io, cx| io.poll_write_vectored(cx, bufs))
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        self.poll_with(|io, cx| io.poll_flush(cx))
+    }
+}
+
+impl<T: AsyncSeek + Unpin> std::io::Seek for AsyncAsSync<'_, '_, T> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.poll_with(|io, cx| io.poll_seek(cx, pos))
+    }
+}
+
+impl<T> AsRef<T> for AsyncAsSync<'_, '_, T> {
+    fn as_ref(&self) -> &T {
+        &self.inner
+    }
+}
+
+impl<T> AsMut<T> for AsyncAsSync<'_, '_, T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+}
+
+impl<T> Borrow<T> for AsyncAsSync<'_, '_, T> {
+    fn borrow(&self) -> &T {
+        &self.inner
+    }
+}
+
+impl<T> BorrowMut<T> for AsyncAsSync<'_, '_, T> {
+    fn borrow_mut(&mut self) -> &mut T {
+        &mut self.inner
     }
 }
 
