@@ -375,8 +375,8 @@ impl<'r, 'ctx, T> AsyncAsSync<'r, 'ctx, T> {
     /// let async_reader = AsyncAsSync::new(&mut context, reader);
     /// ```
     #[inline]
-    pub fn new(context: &'r mut Context<'ctx>, io: T) -> Self {
-        AsyncAsSync { context, inner: io }
+    pub fn new(context: &'r mut Context<'ctx>, inner: T) -> Self {
+        AsyncAsSync { context, inner }
     }
 
     /// Attempt to shutdown the I/O handle.
