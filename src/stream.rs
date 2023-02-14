@@ -65,6 +65,71 @@ impl<S: Stream + Unpin> Iterator for BlockOn<S> {
     fn next(&mut self) -> Option<Self::Item> {
         crate::future::block_on(self.0.next())
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+
+    fn count(self) -> usize {
+        crate::future::block_on(self.0.count())
+    }
+
+    fn last(self) -> Option<Self::Item> {
+        crate::future::block_on(self.0.last())
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        crate::future::block_on(self.0.nth(n))
+    }
+
+    fn fold<B, F>(self, init: B, f: F) -> B
+    where
+        F: FnMut(B, Self::Item) -> B,
+    {
+        crate::future::block_on(self.0.fold(init, f))
+    }
+
+    fn for_each<F>(self, f: F) -> F::Output
+    where
+        F: FnMut(Self::Item),
+    {
+        crate::future::block_on(self.0.for_each(f))
+    }
+
+    fn all<F>(&mut self, f: F) -> bool
+    where
+        F: FnMut(Self::Item) -> bool,
+    {
+        crate::future::block_on(self.0.all(f))
+    }
+
+    fn any<F>(&mut self, f: F) -> bool
+    where
+        F: FnMut(Self::Item) -> bool,
+    {
+        crate::future::block_on(self.0.any(f))
+    }
+
+    fn find<P>(&mut self, predicate: P) -> Option<Self::Item>
+    where
+        P: FnMut(&Self::Item) -> bool,
+    {
+        crate::future::block_on(self.0.find(predicate))
+    }
+
+    fn find_map<B, F>(&mut self, f: F) -> Option<B>
+    where
+        F: FnMut(Self::Item) -> Option<B>,
+    {
+        crate::future::block_on(self.0.find_map(f))
+    }
+
+    fn position<P>(&mut self, predicate: P) -> Option<usize>
+    where
+        P: FnMut(Self::Item) -> bool,
+    {
+        crate::future::block_on(self.0.position(predicate))
+    }
 }
 
 /// Creates an empty stream.
