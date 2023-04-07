@@ -1,3 +1,10 @@
+# Version 1.13.0
+
+- Unbind Debug implementations of BufReader and BufWriter. (#49)
+- Add the once_future() combinator. (#59)
+- Add a combinator for temporarily using an AsyncRead/AsyncWrite as Read/Write. (#62)
+- Implement more methods for stream::BlockOn. (#68)
+
 # Version 1.12.0
 
 - Implement `BufRead` for `BlockOn`
