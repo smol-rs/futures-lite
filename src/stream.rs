@@ -1763,6 +1763,52 @@ pub trait StreamExt: Stream {
         }
     }
 
+    /// Runs this stream until it returns `Poll::Pending`, whereupon it yields `None`.
+    ///
+    /// This is intended to be used as a way of polling a stream without waiting, similar to the
+    /// [`try_iter`] function on [`std::sync::mpsc::Receiver`]. For instance, running this stream
+    /// on an [`async_channel::Receiver`] will return all messages that are currently in the
+    /// channel, but will not wait for new messages.
+    ///
+    /// This returns a [`Stream`] instead of an [`Iterator`] because it still needs access to the
+    /// polling context in order to poll the underlying stream. Since this stream will never return
+    /// `Poll::Pending`, wrapping it in [`block_on`] will allow it to be effectively used as an
+    /// [`Iterator`].
+    ///
+    /// [`try_iter`]: std::sync::mpsc::Receiver::try_iter
+    /// [`async_channel::Receiver`]: async_channel::Receiver
+    /// [`Stream`]: crate::stream::Stream
+    /// [`Iterator`]: std::iter::Iterator
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::{future, pin};
+    /// use futures_lite::stream::{self, StreamExt};
+    ///
+    /// // A stream that yields two values, returns `Pending`, and then yields one more value.
+    /// let pend_once = stream::once_future(async {
+    ///     future::yield_now().await;
+    ///     3
+    /// });
+    /// let s = stream::iter(vec![1, 2]).chain(pend_once);
+    /// pin!(s);
+    ///
+    /// // This will return the first two values, and then `None` because the stream returns
+    /// // `Pending` after that.
+    /// let mut iter = stream::block_on(s.try_iter());
+    /// assert_eq!(iter.next(), Some(1));
+    /// assert_eq!(iter.next(), Some(2));
+    /// assert_eq!(iter.next(), None);
+    ///
+    /// // This will return the last value, because the stream returns `Ready` when polled.
+    /// assert_eq!(iter.next(), Some(3));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    fn try_iter(&mut self) -> TryIter<'_, Self> {
+        TryIter { stream: self }
+    }
+
     /// Boxes the stream and changes its type to `dyn Stream + Send + 'a`.
     ///
     /// # Examples
@@ -3173,5 +3219,30 @@ where
                 None => return Poll::Ready(this.res.take().unwrap()),
             }
         }
+    }
+}
+
+/// Stream for the [`StreamExt::try_iter()`] method.
+#[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
+pub struct TryIter<'a, S: ?Sized> {
+    stream: &'a mut S,
+}
+
+impl<'a, S: Unpin + ?Sized> Unpin for TryIter<'a, S> {}
+
+impl<'a, S: Stream + Unpin + ?Sized> Stream for TryIter<'a, S> {
+    type Item = S::Item;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.stream.poll_next(cx) {
+            Poll::Ready(x) => Poll::Ready(x),
+            Poll::Pending => Poll::Ready(None),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (_, hi) = self.stream.size_hint();
+        (0, hi)
     }
 }
