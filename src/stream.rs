@@ -1776,7 +1776,7 @@ pub trait StreamExt: Stream {
     /// [`Iterator`].
     ///
     /// [`try_iter`]: std::sync::mpsc::Receiver::try_iter
-    /// [`async_channel::Receiver`]: async_channel::Receiver
+    /// [`async_channel::Receiver`]: https://docs.rs/async-channel/latest/async_channel/struct.Receiver.html
     /// [`Stream`]: crate::stream::Stream
     /// [`Iterator`]: std::iter::Iterator
     ///
