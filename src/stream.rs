@@ -1786,6 +1786,7 @@ pub trait StreamExt: Stream {
     /// use futures_lite::{future, pin};
     /// use futures_lite::stream::{self, StreamExt};
     ///
+    /// # #[cfg(feature = "std")] {
     /// // A stream that yields two values, returns `Pending`, and then yields one more value.
     /// let pend_once = stream::once_future(async {
     ///     future::yield_now().await;
@@ -1804,6 +1805,7 @@ pub trait StreamExt: Stream {
     /// // This will return the last value, because the stream returns `Ready` when polled.
     /// assert_eq!(iter.next(), Some(3));
     /// assert_eq!(iter.next(), None);
+    /// # }
     /// ```
     fn try_iter(&mut self) -> TryIter<'_, Self> {
         TryIter { stream: self }
