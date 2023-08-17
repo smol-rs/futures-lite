@@ -284,6 +284,18 @@ pin_project! {
     }
 }
 
+/// Extracts the contents of two options and zips them, handling `(Some(_), None)` cases
+fn take_zip_from_parts<T1, T2>(o1: &mut Option<T1>, o2: &mut Option<T2>) -> Poll<(T1, T2)> {
+    match (o1.take(), o2.take()) {
+        (Some(t1), Some(t2)) => Poll::Ready((t1, t2)),
+        (o1x, o2x) => {
+            *o1 = o1x;
+            *o2 = o2x;
+            Poll::Pending
+        }
+    }
+}
+
 impl<F1, F2> Future for Zip<F1, F2>
 where
     F1: Future,
@@ -306,11 +318,7 @@ where
             }
         }
 
-        if this.output1.is_some() && this.output2.is_some() {
-            Poll::Ready((this.output1.take().unwrap(), this.output2.take().unwrap()))
-        } else {
-            Poll::Pending
-        }
+        take_zip_from_parts(this.output1, this.output2)
     }
 }
 
@@ -328,7 +336,7 @@ where
 /// assert_eq!(future::try_zip(a, b).await, Err(2));
 /// # })
 /// ```
-pub fn try_zip<T1, T2, E, F1, F2>(future1: F1, future2: F2) -> TryZip<F1, F2>
+pub fn try_zip<T1, T2, E, F1, F2>(future1: F1, future2: F2) -> TryZip<F1, T1, F2, T2>
 where
     F1: Future<Output = Result<T1, E>>,
     F2: Future<Output = Result<T2, E>>,
@@ -345,21 +353,17 @@ pin_project! {
     /// Future for the [`try_zip()`] function.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct TryZip<F1, F2>
-    where
-        F1: Future,
-        F2: Future,
-    {
+    pub struct TryZip<F1, T1, F2, T2> {
         #[pin]
         future1: F1,
-        output1: Option<F1::Output>,
+        output1: Option<T1>,
         #[pin]
         future2: F2,
-        output2: Option<F2::Output>,
+        output2: Option<T2>,
     }
 }
 
-impl<T1, T2, E, F1, F2> Future for TryZip<F1, F2>
+impl<T1, T2, E, F1, F2> Future for TryZip<F1, T1, F2, T2>
 where
     F1: Future<Output = Result<T1, E>>,
     F2: Future<Output = Result<T2, E>>,
@@ -372,7 +376,7 @@ where
         if this.output1.is_none() {
             if let Poll::Ready(out) = this.future1.poll(cx) {
                 match out {
-                    Ok(t) => *this.output1 = Some(Ok(t)),
+                    Ok(t) => *this.output1 = Some(t),
                     Err(err) => return Poll::Ready(Err(err)),
                 }
             }
@@ -381,21 +385,13 @@ where
         if this.output2.is_none() {
             if let Poll::Ready(out) = this.future2.poll(cx) {
                 match out {
-                    Ok(t) => *this.output2 = Some(Ok(t)),
+                    Ok(t) => *this.output2 = Some(t),
                     Err(err) => return Poll::Ready(Err(err)),
                 }
             }
         }
 
-        if this.output1.is_some() && this.output2.is_some() {
-            let res1 = this.output1.take().unwrap();
-            let res2 = this.output2.take().unwrap();
-            let t1 = res1.map_err(|_| unreachable!()).unwrap();
-            let t2 = res2.map_err(|_| unreachable!()).unwrap();
-            Poll::Ready(Ok((t1, t2)))
-        } else {
-            Poll::Pending
-        }
+        take_zip_from_parts(this.output1, this.output2).map(Ok)
     }
 }
 
