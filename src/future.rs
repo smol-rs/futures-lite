@@ -19,10 +19,9 @@
 extern crate alloc;
 
 #[doc(no_inline)]
-pub use core::future::Future;
+pub use core::future::{pending, ready, Future, Pending, Ready};
 
 use core::fmt;
-use core::marker::PhantomData;
 use core::pin::Pin;
 
 use pin_project_lite::pin_project;
@@ -108,46 +107,6 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
             }
         }
     })
-}
-
-/// Creates a future that is always pending.
-///
-/// # Examples
-///
-/// ```no_run
-/// use futures_lite::future;
-///
-/// # spin_on::spin_on(async {
-/// future::pending::<()>().await;
-/// unreachable!();
-/// # })
-/// ```
-pub fn pending<T>() -> Pending<T> {
-    Pending {
-        _marker: PhantomData,
-    }
-}
-
-/// Future for the [`pending()`] function.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Pending<T> {
-    _marker: PhantomData<T>,
-}
-
-impl<T> Unpin for Pending<T> {}
-
-impl<T> fmt::Debug for Pending<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Pending").finish()
-    }
-}
-
-impl<T> Future for Pending<T> {
-    type Output = T;
-
-    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<T> {
-        Poll::Pending
-    }
 }
 
 /// Polls a future just once and returns an [`Option`] with the result.
@@ -244,36 +203,6 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
         let this = self.project();
         (this.f)(cx)
-    }
-}
-
-/// Creates a future that resolves to the provided value.
-///
-/// # Examples
-///
-/// ```
-/// use futures_lite::future;
-///
-/// # spin_on::spin_on(async {
-/// assert_eq!(future::ready(7).await, 7);
-/// # })
-/// ```
-pub fn ready<T>(val: T) -> Ready<T> {
-    Ready(Some(val))
-}
-
-/// Future for the [`ready()`] function.
-#[derive(Debug)]
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Ready<T>(Option<T>);
-
-impl<T> Unpin for Ready<T> {}
-
-impl<T> Future for Ready<T> {
-    type Output = T;
-
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<T> {
-        Poll::Ready(self.0.take().expect("`Ready` polled after completion"))
     }
 }
 
