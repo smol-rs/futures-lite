@@ -9,7 +9,7 @@ authors = [
   "Contributors to futures-rs",
 ]
 edition = "2018"
-rust-version = "1.40"
+rust-version = "1.48"
 description = "Futures, streams, and async I/O combinators"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/smol-rs/futures-lite"
