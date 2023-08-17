@@ -51,8 +51,8 @@ use core::task::{Context, Poll};
 /// ```
 #[cfg(feature = "std")]
 pub fn block_on<T>(future: impl Future<Output = T>) -> T {
-    use std::cell::RefCell;
-    use std::task::Waker;
+    use core::cell::RefCell;
+    use core::task::Waker;
 
     use parking::Parker;
     use waker_fn::waker_fn;
@@ -77,33 +77,28 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
 
     CACHE.with(|cache| {
         // Try grabbing the cached parker and waker.
-        match cache.try_borrow_mut() {
+        let tmp_cached;
+        let tmp_fresh;
+        let (parker, waker) = match cache.try_borrow_mut() {
             Ok(cache) => {
                 // Use the cached parker and waker.
-                let (parker, waker) = &*cache;
-                let cx = &mut Context::from_waker(waker);
-
-                // Keep polling until the future is ready.
-                loop {
-                    match future.as_mut().poll(cx) {
-                        Poll::Ready(output) => return output,
-                        Poll::Pending => parker.park(),
-                    }
-                }
+                tmp_cached = cache;
+                &*tmp_cached
             }
             Err(_) => {
                 // Looks like this is a recursive `block_on()` call.
                 // Create a fresh parker and waker.
-                let (parker, waker) = parker_and_waker();
-                let cx = &mut Context::from_waker(&waker);
+                tmp_fresh = parker_and_waker();
+                &tmp_fresh
+            }
+        };
 
-                // Keep polling until the future is ready.
-                loop {
-                    match future.as_mut().poll(cx) {
-                        Poll::Ready(output) => return output,
-                        Poll::Pending => parker.park(),
-                    }
-                }
+        let cx = &mut Context::from_waker(waker);
+        // Keep polling until the future is ready.
+        loop {
+            match future.as_mut().poll(cx) {
+                Poll::Ready(output) => return output,
+                Poll::Pending => parker.park(),
             }
         }
     })
