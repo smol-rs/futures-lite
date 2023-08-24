@@ -32,6 +32,9 @@ use std::{
     panic::{catch_unwind, AssertUnwindSafe, UnwindSafe},
 };
 
+#[cfg(feature = "std")]
+use fastrand::Rng;
+
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 use core::task::{Context, Poll};
@@ -480,7 +483,11 @@ where
     F1: Future<Output = T>,
     F2: Future<Output = T>,
 {
-    Race { future1, future2 }
+    Race {
+        future1,
+        future2,
+        rng: Rng::new(),
+    }
 }
 
 #[cfg(feature = "std")]
@@ -493,6 +500,7 @@ pin_project! {
         future1: F1,
         #[pin]
         future2: F2,
+        rng: Rng,
     }
 }
 
@@ -507,7 +515,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        if fastrand::bool() {
+        if this.rng.bool() {
             if let Poll::Ready(t) = this.future1.poll(cx) {
                 return Poll::Ready(t);
             }
@@ -644,6 +652,7 @@ pub trait FutureExt: Future {
         Race {
             future1: self,
             future2: other,
+            rng: Rng::new(),
         }
     }
 

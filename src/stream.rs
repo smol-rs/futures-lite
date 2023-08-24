@@ -31,6 +31,9 @@ use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+#[cfg(feature = "std")]
+use fastrand::Rng;
+
 use pin_project_lite::pin_project;
 
 use crate::ready;
@@ -1756,6 +1759,7 @@ pub trait StreamExt: Stream {
         Race {
             stream1: self,
             stream2: other,
+            rng: Rng::new(),
         }
     }
 
@@ -2377,7 +2381,11 @@ where
     S1: Stream<Item = T>,
     S2: Stream<Item = T>,
 {
-    Race { stream1, stream2 }
+    Race {
+        stream1,
+        stream2,
+        rng: Rng::new(),
+    }
 }
 
 #[cfg(feature = "std")]
@@ -2390,6 +2398,7 @@ pin_project! {
         stream1: S1,
         #[pin]
         stream2: S2,
+        rng: Rng,
     }
 }
 
@@ -2404,7 +2413,7 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        if fastrand::bool() {
+        if this.rng.bool() {
             if let Poll::Ready(Some(t)) = this.stream1.as_mut().poll_next(cx) {
                 return Poll::Ready(Some(t));
             }
