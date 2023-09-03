@@ -9,7 +9,7 @@ authors = [
   "Contributors to futures-rs",
 ]
 edition = "2018"
-rust-version = "1.48"
+rust-version = "1.61"
 description = "Futures, streams, and async I/O combinators"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/smol-rs/futures-lite"
@@ -20,12 +20,13 @@ categories = ["asynchronous", "concurrency"]
 exclude = ["/.*"]
 
 [features]
-default = ["std"]
-std = ["alloc", "fastrand", "futures-io", "parking", "memchr", "waker-fn"]
+default = ["race", "std"]
+std = ["alloc", "fastrand/std", "futures-io", "parking", "memchr", "waker-fn"]
 alloc = []
+race = ["fastrand"]
 
 [dependencies]
-fastrand = { version = "2.0.0", optional = true }
+fastrand = { version = "2.0.0", optional = true, default-features = false }
 futures-core = { version = "0.3.5", default-features = false }
 futures-io = { version = "0.3.5", optional = true }
 memchr = { version = "2.3.3", optional = true }

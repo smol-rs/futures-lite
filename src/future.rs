@@ -32,6 +32,9 @@ use std::{
     panic::{catch_unwind, AssertUnwindSafe, UnwindSafe},
 };
 
+#[cfg(feature = "race")]
+use fastrand::Rng;
+
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 use core::task::{Context, Poll};
@@ -474,16 +477,57 @@ where
 /// let res = future::race(ready(1), ready(2)).await;
 /// # })
 /// ```
-#[cfg(feature = "std")]
+#[cfg(all(feature = "race", feature = "std"))]
 pub fn race<T, F1, F2>(future1: F1, future2: F2) -> Race<F1, F2>
 where
     F1: Future<Output = T>,
     F2: Future<Output = T>,
 {
-    Race { future1, future2 }
+    Race {
+        future1,
+        future2,
+        rng: Rng::new(),
+    }
 }
 
-#[cfg(feature = "std")]
+/// Race two futures but with a predefined random seed.
+///
+/// This function is identical to [`race`], but instead of using a random seed from a thread-local
+/// RNG, it allows the user to provide a seed. It is useful for when you already have a source of
+/// randomness available, or if you want to use a fixed seed.
+///
+/// See documentation of the [`race`] function for features and caveats.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::future::{self, pending, ready};
+///
+/// // A fixed seed is used, so the result is deterministic.
+/// const SEED: u64 = 0x42;
+///
+/// # spin_on::spin_on(async {
+/// assert_eq!(future::race_with_seed(ready(1), pending(), SEED).await, 1);
+/// assert_eq!(future::race_with_seed(pending(), ready(2), SEED).await, 2);
+///
+/// // One of the two futures is randomly chosen as the winner.
+/// let res = future::race_with_seed(ready(1), ready(2), SEED).await;
+/// # })
+/// ```
+#[cfg(feature = "race")]
+pub fn race_with_seed<T, F1, F2>(future1: F1, future2: F2, seed: u64) -> Race<F1, F2>
+where
+    F1: Future<Output = T>,
+    F2: Future<Output = T>,
+{
+    Race {
+        future1,
+        future2,
+        rng: Rng::with_seed(seed),
+    }
+}
+
+#[cfg(feature = "race")]
 pin_project! {
     /// Future for the [`race()`] function and the [`FutureExt::race()`] method.
     #[derive(Debug)]
@@ -493,10 +537,11 @@ pin_project! {
         future1: F1,
         #[pin]
         future2: F2,
+        rng: Rng,
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "race")]
 impl<T, F1, F2> Future for Race<F1, F2>
 where
     F1: Future<Output = T>,
@@ -507,7 +552,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        if fastrand::bool() {
+        if this.rng.bool() {
             if let Poll::Ready(t) = this.future1.poll(cx) {
                 return Poll::Ready(t);
             }
@@ -635,7 +680,7 @@ pub trait FutureExt: Future {
     /// let res = ready(1).race(ready(2)).await;
     /// # })
     /// ```
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "race"))]
     fn race<F>(self, other: F) -> Race<Self, F>
     where
         Self: Sized,
@@ -644,6 +689,7 @@ pub trait FutureExt: Future {
         Race {
             future1: self,
             future2: other,
+            rng: Rng::new(),
         }
     }
 

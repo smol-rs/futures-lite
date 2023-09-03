@@ -31,6 +31,9 @@ use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+#[cfg(feature = "race")]
+use fastrand::Rng;
+
 use pin_project_lite::pin_project;
 
 use crate::ready;
@@ -1747,7 +1750,7 @@ pub trait StreamExt: Stream {
     /// let res = once(1).race(once(2)).next().await;
     /// # })
     /// ```
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "race"))]
     fn race<S>(self, other: S) -> Race<Self, S>
     where
         Self: Sized,
@@ -1756,6 +1759,7 @@ pub trait StreamExt: Stream {
         Race {
             stream1: self,
             stream2: other,
+            rng: Rng::new(),
         }
     }
 
@@ -2371,16 +2375,52 @@ where
 /// // One of the two stream is randomly chosen as the winner.
 /// let res = stream::race(once(1), once(2)).next().await;
 /// # })
-#[cfg(feature = "std")]
+/// ```
+#[cfg(all(feature = "std", feature = "race"))]
 pub fn race<T, S1, S2>(stream1: S1, stream2: S2) -> Race<S1, S2>
 where
     S1: Stream<Item = T>,
     S2: Stream<Item = T>,
 {
-    Race { stream1, stream2 }
+    Race {
+        stream1,
+        stream2,
+        rng: Rng::new(),
+    }
 }
 
-#[cfg(feature = "std")]
+/// Races two streams, but with a user-provided seed for randomness.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::stream::{self, once, pending, StreamExt};
+///
+/// // A fixed seed is used for reproducibility.
+/// const SEED: u64 = 123;
+///
+/// # spin_on::spin_on(async {
+/// assert_eq!(stream::race_with_seed(once(1), pending(), SEED).next().await, Some(1));
+/// assert_eq!(stream::race_with_seed(pending(), once(2), SEED).next().await, Some(2));
+///
+/// // One of the two stream is randomly chosen as the winner.
+/// let res = stream::race_with_seed(once(1), once(2), SEED).next().await;
+/// # })
+/// ```
+#[cfg(feature = "race")]
+pub fn race_with_seed<T, S1, S2>(stream1: S1, stream2: S2, seed: u64) -> Race<S1, S2>
+where
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
+{
+    Race {
+        stream1,
+        stream2,
+        rng: Rng::with_seed(seed),
+    }
+}
+
+#[cfg(feature = "race")]
 pin_project! {
     /// Stream for the [`race()`] function and the [`StreamExt::race()`] method.
     #[derive(Clone, Debug)]
@@ -2390,10 +2430,11 @@ pin_project! {
         stream1: S1,
         #[pin]
         stream2: S2,
+        rng: Rng,
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "race")]
 impl<T, S1, S2> Stream for Race<S1, S2>
 where
     S1: Stream<Item = T>,
@@ -2404,7 +2445,7 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        if fastrand::bool() {
+        if this.rng.bool() {
             if let Poll::Ready(Some(t)) = this.stream1.as_mut().poll_next(cx) {
                 return Poll::Ready(Some(t));
             }
