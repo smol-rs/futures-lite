@@ -1811,7 +1811,7 @@ fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
         let (done, used) = {
             let available = ready!(reader.as_mut().poll_fill_buf(cx))?;
 
-            if let Some(i) = memchr::memchr(byte, available) {
+            if let Some(i) = memchr(byte, available) {
                 buf.extend_from_slice(&available[..=i]);
                 (true, i + 1)
             } else {
@@ -3090,4 +3090,13 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for WriteHalf<T> {
         let mut inner = self.0.lock().unwrap();
         Pin::new(&mut *inner).poll_close(cx)
     }
+}
+
+#[cfg(feature = "memchr")]
+use memchr_crate::memchr;
+
+/// Unoptimized memchr fallback.
+#[cfg(not(feature = "memchr"))]
+fn memchr(needle: u8, haystack: &[u8]) -> Option<usize> {
+    haystack.iter().position(|&b| b == needle)
 }
