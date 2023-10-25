@@ -1,3 +1,12 @@
+# Version 2.0.0
+
+- **Breaking:** Expose `future::{ready, pending}` from `core` instead of defining
+  our own. (#73)
+- **Breaking:** The `TryZip` and `Zip` combinators are modified to have a cleaner
+  API, where generic constraints are not necessary on the structure itself at the
+  cost of additional generics. (#74)
+- Add a way to use racey futures on `no_std` by providing your own seed. (#75)
+
 # Version 1.13.0
 
 - Unbind Debug implementations of BufReader and BufWriter. (#49)
