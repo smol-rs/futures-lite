@@ -58,7 +58,6 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
     use core::task::Waker;
 
     use parking::Parker;
-    use waker_fn::waker_fn;
 
     // Pin the future on the stack.
     crate::pin!(future);
@@ -67,9 +66,7 @@ pub fn block_on<T>(future: impl Future<Output = T>) -> T {
     fn parker_and_waker() -> (Parker, Waker) {
         let parker = Parker::new();
         let unparker = parker.unparker();
-        let waker = waker_fn(move || {
-            unparker.unpark();
-        });
+        let waker = Waker::from(unparker);
         (parker, waker)
     }
 
