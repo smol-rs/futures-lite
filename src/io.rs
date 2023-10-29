@@ -3093,7 +3093,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for WriteHalf<T> {
 }
 
 #[cfg(feature = "memchr")]
-use memchr_crate::memchr;
+use memchr::memchr;
 
 /// Unoptimized memchr fallback.
 #[cfg(not(feature = "memchr"))]

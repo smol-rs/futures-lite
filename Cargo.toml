@@ -23,14 +23,13 @@ exclude = ["/.*"]
 default = ["race", "std"]
 std = ["alloc", "fastrand/std", "futures-io", "parking"]
 alloc = []
-memchr = ["std", "memchr_crate"]
 race = ["fastrand"]
 
 [dependencies]
 fastrand = { version = "2.0.0", optional = true, default-features = false }
 futures-core = { version = "0.3.5", default-features = false }
 futures-io = { version = "0.3.5", optional = true }
-memchr_crate = { package = "memchr", version = "2.3.3", optional = true }
+memchr = { version = "2.3.3", optional = true }
 parking = { version = "2.2.0", optional = true }
 pin-project-lite = "0.2.0"
 
