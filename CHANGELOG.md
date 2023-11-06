@@ -1,3 +1,7 @@
+# Version 2.0.1
+
+- Remove dependency on the `waker-fn` crate. (#81)
+
 # Version 2.0.0
 
 - **Breaking:** Expose `future::{ready, pending}` from `core` instead of defining
