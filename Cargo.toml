@@ -21,7 +21,7 @@ exclude = ["/.*"]
 
 [features]
 default = ["race", "std"]
-std = ["alloc", "fastrand/std", "futures-io", "parking", "memchr"]
+std = ["alloc", "fastrand/std", "futures-io", "parking"]
 alloc = []
 race = ["fastrand"]
 
