@@ -1,3 +1,9 @@
+# Version 2.1.0
+
+- Make it so `read_line` and other futures use a naive implementation of byte
+  searching unless the `memchr` feature is enabled. This prevents needing to
+  compile the `memchr` crate unless it is desired. (#77)
+
 # Version 2.0.1
 
 - Remove dependency on the `waker-fn` crate. (#81)
