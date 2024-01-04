@@ -84,7 +84,7 @@ where
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             let mut this = self.project();
-            loop {
+            for _ in 0..50 {
                 let buffer = ready!(this.reader.as_mut().poll_fill_buf(cx))?;
                 if buffer.is_empty() {
                     ready!(this.writer.as_mut().poll_flush(cx))?;
@@ -98,6 +98,10 @@ where
                 *this.amt += i as u64;
                 this.reader.as_mut().consume(i);
             }
+
+            // Don't run for too long without yielding.
+            cx.waker().wake_by_ref();
+            Poll::Pending
         }
     }
 
