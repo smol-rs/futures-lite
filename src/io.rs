@@ -62,8 +62,8 @@ const DEFAULT_BUF_SIZE: usize = 8 * 1024;
 /// ```
 pub async fn copy<R, W>(reader: R, writer: W) -> Result<u64>
 where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
+    R: AsyncRead,
+    W: AsyncWrite,
 {
     pin_project! {
         struct CopyFuture<R, W> {
@@ -78,7 +78,7 @@ where
     impl<R, W> Future for CopyFuture<R, W>
     where
         R: AsyncBufRead,
-        W: AsyncWrite + Unpin,
+        W: AsyncWrite,
     {
         type Output = Result<u64>;
 
