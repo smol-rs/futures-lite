@@ -2307,6 +2307,14 @@ where
             }
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (_, hi) = self.stream.size_hint();
+
+        // If the filter matches all of the elements, it will match the stream's upper bound.
+        // If the filter matches none of the elements, there will be zero returned values.
+        (0, hi)
+    }
 }
 
 /// Merges two streams, preferring items from `stream1` whenever both streams are ready.
