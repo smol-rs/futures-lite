@@ -49,16 +49,12 @@ jobs:
 
   msrv:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # When updating this, the reminder to update the minimum supported
-        # Rust version in Cargo.toml.
-        rust: ['1.61']
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust
-        run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
-      - run: cargo build
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+      # memchr feature can have a higher MSRV.
+      - run: cargo hack build --feature-powerset --skip memchr --rust-version
 
   clippy:
     runs-on: ubuntu-latest
