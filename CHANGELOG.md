@@ -1,3 +1,9 @@
+# Version 2.2.0
+
+- Relax `Unpin` bounds on `io::copy`. (#87)
+- Implement `size_hint` for `stream::Filter`. (#88)
+- Relax MSRV to 1.60. (#90)
+
 # Version 2.1.0
 
 - Make it so `read_line` and other futures use a naive implementation of byte
