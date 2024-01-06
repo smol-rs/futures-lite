@@ -2698,9 +2698,7 @@ impl<R1: AsyncBufRead, R2: AsyncBufRead> AsyncBufRead for Chain<R1, R2> {
         let this = self.project();
         if !*this.done_first {
             match ready!(this.first.poll_fill_buf(cx)) {
-                Ok(buf) if buf.is_empty() => {
-                    *this.done_first = true;
-                }
+                Ok([]) => *this.done_first = true,
                 Ok(buf) => return Poll::Ready(Ok(buf)),
                 Err(err) => return Poll::Ready(Err(err)),
             }
