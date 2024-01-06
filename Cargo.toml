@@ -8,7 +8,7 @@ authors = [
   "Stjepan Glavina <stjepang@gmail.com>",
   "Contributors to futures-rs",
 ]
-edition = "2018"
+edition = "2021"
 rust-version = "1.60"
 description = "Futures, streams, and async I/O combinators"
 license = "Apache-2.0 OR MIT"
