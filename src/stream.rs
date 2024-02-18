@@ -1763,7 +1763,7 @@ pub trait StreamExt: Stream {
         }
     }
 
-    /// Runs this stream until it returns `Poll::Pending`, whereupon it yields `None`.
+    /// Yields all immediately available values from a stream.
     ///
     /// This is intended to be used as a way of polling a stream without waiting, similar to the
     /// [`try_iter`] function on [`std::sync::mpsc::Receiver`]. For instance, running this stream
@@ -1774,6 +1774,9 @@ pub trait StreamExt: Stream {
     /// polling context in order to poll the underlying stream. Since this stream will never return
     /// `Poll::Pending`, wrapping it in [`block_on`] will allow it to be effectively used as an
     /// [`Iterator`].
+    ///
+    /// This stream is not necessarily fused. After it returns `None`, it can return `Some(x)` in
+    /// the future if it is polled again.
     ///
     /// [`try_iter`]: std::sync::mpsc::Receiver::try_iter
     /// [`async_channel::Receiver`]: https://docs.rs/async-channel/latest/async_channel/struct.Receiver.html
@@ -1797,7 +1800,7 @@ pub trait StreamExt: Stream {
     ///
     /// // This will return the first two values, and then `None` because the stream returns
     /// // `Pending` after that.
-    /// let mut iter = stream::block_on(s.try_iter());
+    /// let mut iter = stream::block_on(s.try_stream());
     /// assert_eq!(iter.next(), Some(1));
     /// assert_eq!(iter.next(), Some(2));
     /// assert_eq!(iter.next(), None);
@@ -1807,8 +1810,8 @@ pub trait StreamExt: Stream {
     /// assert_eq!(iter.next(), None);
     /// # }
     /// ```
-    fn try_iter(&mut self) -> TryIter<'_, Self> {
-        TryIter { stream: self }
+    fn try_stream(&mut self) -> TryStream<'_, Self> {
+        TryStream { stream: self }
     }
 
     /// Boxes the stream and changes its type to `dyn Stream + Send + 'a`.
@@ -3224,16 +3227,75 @@ where
     }
 }
 
-/// Stream for the [`StreamExt::try_iter()`] method.
+/// Stream for the [`StreamExt::try_stream()`] method.
 #[derive(Debug)]
 #[must_use = "streams do nothing unless polled"]
-pub struct TryIter<'a, S: ?Sized> {
+pub struct TryStream<'a, S: ?Sized> {
     stream: &'a mut S,
 }
 
-impl<'a, S: Unpin + ?Sized> Unpin for TryIter<'a, S> {}
+impl<'a, S: Unpin + ?Sized> Unpin for TryStream<'a, S> {}
 
-impl<'a, S: Stream + Unpin + ?Sized> Stream for TryIter<'a, S> {
+impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
+    /// Get a reference to the underlying stream.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// use futures_lite::{prelude::*, stream};
+    ///
+    /// # futures_lite::future::block_on(async {
+    /// let mut s = stream::iter(vec![1, 2, 3]);
+    /// let s2 = s.try_stream();
+    ///
+    /// let inner = s2.get_ref();
+    /// // s and inner are the same.
+    /// # });
+    /// ```
+    pub fn get_ref(&self) -> &S {
+        &self.stream
+    }
+
+    /// Get a mutable reference to the underlying stream.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// use futures_lite::{prelude::*, stream};
+    ///
+    /// # futures_lite::future::block_on(async {
+    /// let mut s = stream::iter(vec![1, 2, 3]);
+    /// let mut s2 = s.try_stream();
+    ///
+    /// let inner = s2.get_mut();
+    /// assert_eq!(inner.collect::<Vec<_>>().await, vec![1, 2, 3]);
+    /// # });
+    /// ```
+    pub fn get_mut(&mut self) -> &mut S {
+        &mut self.stream
+    }
+
+    /// Consume this stream and get the underlying stream.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// use futures_lite::{prelude::*, stream};
+    ///
+    /// # futures_lite::future::block_on(async {
+    /// let mut s = stream::iter(vec![1, 2, 3]);
+    /// let mut s2 = s.try_stream();
+    ///
+    /// let inner = s2.into_inner();
+    /// assert_eq!(inner.collect::<Vec<_>>().await, vec![1, 2, 3]);
+    /// # });
+    /// ```
+    pub fn into_inner(self) -> &'a mut S {
+        self.stream
+    }
+}
+
+impl<'a, S: Stream + Unpin + ?Sized> Stream for TryStream<'a, S> {
     type Item = S::Item;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
