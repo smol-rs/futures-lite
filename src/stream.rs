@@ -3244,7 +3244,7 @@ impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
     /// ```
     /// use futures_lite::{prelude::*, stream};
     ///
-    /// # futures_lite::future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
     /// let s2 = s.try_stream();
     ///
@@ -3263,7 +3263,7 @@ impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
     /// ```
     /// use futures_lite::{prelude::*, stream};
     ///
-    /// # futures_lite::future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
     /// let mut s2 = s.try_stream();
     ///
@@ -3282,7 +3282,7 @@ impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
     /// ```
     /// use futures_lite::{prelude::*, stream};
     ///
-    /// # futures_lite::future::block_on(async {
+    /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
     /// let mut s2 = s.try_stream();
     ///
