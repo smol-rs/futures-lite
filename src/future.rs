@@ -15,7 +15,7 @@
 //! # });
 //! ```
 
-#[cfg(feature = "alloc")]
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
 extern crate alloc;
 
 #[doc(no_inline)]
@@ -35,7 +35,7 @@ use std::{
 #[cfg(feature = "race")]
 use fastrand::Rng;
 
-#[cfg(feature = "alloc")]
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
 use alloc::boxed::Box;
 use core::task::{Context, Poll};
 
