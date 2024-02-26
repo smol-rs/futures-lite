@@ -15,13 +15,13 @@
 //! # });
 //! ```
 
-#[cfg(feature = "alloc")]
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
 extern crate alloc;
 
 #[doc(no_inline)]
 pub use futures_core::stream::Stream;
 
-#[cfg(feature = "alloc")]
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
 use alloc::boxed::Box;
 
 use core::fmt;
