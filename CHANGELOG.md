@@ -1,3 +1,7 @@
+# Version 2.3.0
+
+- Add `StreamExt::drain` for draining objects from a `Stream` without waiting (#70).
+
 # Version 2.2.0
 
 - Relax `Unpin` bounds on `io::copy`. (#87)
