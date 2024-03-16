@@ -1800,7 +1800,7 @@ pub trait StreamExt: Stream {
     ///
     /// // This will return the first two values, and then `None` because the stream returns
     /// // `Pending` after that.
-    /// let mut iter = stream::block_on(s.try_stream());
+    /// let mut iter = stream::block_on(s.drain());
     /// assert_eq!(iter.next(), Some(1));
     /// assert_eq!(iter.next(), Some(2));
     /// assert_eq!(iter.next(), None);
@@ -1810,8 +1810,8 @@ pub trait StreamExt: Stream {
     /// assert_eq!(iter.next(), None);
     /// # }
     /// ```
-    fn try_stream(&mut self) -> TryStream<'_, Self> {
-        TryStream { stream: self }
+    fn drain(&mut self) -> Drain<'_, Self> {
+        Drain { stream: self }
     }
 
     /// Boxes the stream and changes its type to `dyn Stream + Send + 'a`.
@@ -3227,16 +3227,16 @@ where
     }
 }
 
-/// Stream for the [`StreamExt::try_stream()`] method.
+/// Stream for the [`StreamExt::drain()`] method.
 #[derive(Debug)]
 #[must_use = "streams do nothing unless polled"]
-pub struct TryStream<'a, S: ?Sized> {
+pub struct Drain<'a, S: ?Sized> {
     stream: &'a mut S,
 }
 
-impl<'a, S: Unpin + ?Sized> Unpin for TryStream<'a, S> {}
+impl<'a, S: Unpin + ?Sized> Unpin for Drain<'a, S> {}
 
-impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
+impl<'a, S: Unpin + ?Sized> Drain<'a, S> {
     /// Get a reference to the underlying stream.
     ///
     /// ## Examples
@@ -3246,7 +3246,7 @@ impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
-    /// let s2 = s.try_stream();
+    /// let s2 = s.drain();
     ///
     /// let inner = s2.get_ref();
     /// // s and inner are the same.
@@ -3265,7 +3265,7 @@ impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
-    /// let mut s2 = s.try_stream();
+    /// let mut s2 = s.drain();
     ///
     /// let inner = s2.get_mut();
     /// assert_eq!(inner.collect::<Vec<_>>().await, vec![1, 2, 3]);
@@ -3284,7 +3284,7 @@ impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
     ///
     /// # spin_on::spin_on(async {
     /// let mut s = stream::iter(vec![1, 2, 3]);
-    /// let mut s2 = s.try_stream();
+    /// let mut s2 = s.drain();
     ///
     /// let inner = s2.into_inner();
     /// assert_eq!(inner.collect::<Vec<_>>().await, vec![1, 2, 3]);
@@ -3295,7 +3295,7 @@ impl<'a, S: Unpin + ?Sized> TryStream<'a, S> {
     }
 }
 
-impl<'a, S: Stream + Unpin + ?Sized> Stream for TryStream<'a, S> {
+impl<'a, S: Stream + Unpin + ?Sized> Stream for Drain<'a, S> {
     type Item = S::Item;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
