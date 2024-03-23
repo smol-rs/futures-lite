@@ -23,6 +23,8 @@ pub use futures_core::stream::Stream;
 
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 use alloc::boxed::Box;
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+use alloc::vec::Vec;
 
 use core::fmt;
 use core::future::Future;
@@ -3383,6 +3385,7 @@ impl<'a, S: Stream + Unpin + ?Sized> Stream for Drain<'a, S> {
     }
 }
 
+#[cfg(feature = "alloc")]
 pin_project! {
     /// Stream for the [`chunks`](StreamExt::chunks) method.
     #[derive(Debug)]
@@ -3395,6 +3398,7 @@ pin_project! {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<S: Stream> Chunks<S> {
     pub(super) fn new(stream: S, capacity: usize) -> Self {
         assert!(capacity > 0);
@@ -3412,6 +3416,7 @@ impl<S: Stream> Chunks<S> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<S: Stream> Stream for Chunks<S> {
     type Item = Vec<S::Item>;
 
@@ -3456,6 +3461,7 @@ impl<S: Stream> Stream for Chunks<S> {
     }
 }
 
+#[cfg(feature = "alloc")]
 pin_project! {
     /// Stream for the [`try_chunks`](StreamExt::try_chunks) method.
     #[derive(Debug)]
@@ -3468,6 +3474,7 @@ pin_project! {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<S, T> TryChunks<S, T> {
     pub(super) fn new(stream: S, capacity: usize) -> Self {
         assert!(capacity > 0);
@@ -3485,6 +3492,7 @@ impl<S, T> TryChunks<S, T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<S: Stream<Item = Result<T, E>>, T, E> Stream for TryChunks<S, T> {
     type Item = Result<Vec<T>, TryChunksError<T, E>>;
 
@@ -3537,15 +3545,18 @@ impl<S: Stream<Item = Result<T, E>>, T, E> Stream for TryChunks<S, T> {
 /// Error indicating, that while chunk was collected inner stream produced an error.
 ///
 /// Contains all items that were collected before an error occurred, and the stream error itself.
+#[cfg(feature = "alloc")]
 #[derive(PartialEq, Eq)]
 pub struct TryChunksError<T, E>(pub Vec<T>, pub E);
 
+#[cfg(feature = "alloc")]
 impl<T, E: fmt::Debug> fmt::Debug for TryChunksError<T, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.1.fmt(f)
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T, E: fmt::Display> fmt::Display for TryChunksError<T, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.1.fmt(f)
