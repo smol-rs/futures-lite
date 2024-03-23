@@ -3453,10 +3453,10 @@ impl<S: Stream> Stream for Chunks<S> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         let (lower, upper) = self.stream.size_hint();
         let len = self.items.len();
-        let lower = lower.saturating_add(len).div_ceil(self.cap);
+        let lower = div_ceil_(lower.saturating_add(len), self.cap);
         let upper = upper
             .and_then(|u| u.checked_add(len))
-            .map(|u| u.div_ceil(self.cap));
+            .map(|u| div_ceil_(u, self.cap));
         (lower, upper)
     }
 }
@@ -3534,10 +3534,10 @@ impl<S: Stream<Item = Result<T, E>>, T, E> Stream for TryChunks<S, T> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         let (lower, upper) = self.stream.size_hint();
         let len = self.items.len();
-        let lower = lower.saturating_add(len).div_ceil(self.cap);
+        let lower = div_ceil_(lower.saturating_add(len), self.cap);
         let upper = upper
             .and_then(|u| u.checked_add(len))
-            .map(|u| u.div_ceil(self.cap));
+            .map(|u| div_ceil_(u, self.cap));
         (lower, upper)
     }
 }
@@ -3565,3 +3565,18 @@ impl<T, E: fmt::Display> fmt::Display for TryChunksError<T, E> {
 
 #[cfg(feature = "std")]
 impl<T, E: fmt::Debug + fmt::Display> std::error::Error for TryChunksError<T, E> {}
+
+// int::div_cell is stable in rust 1.73 and above
+// since currently our msrv is 1.60
+// we just copy the code from std
+// and rename to div_cell_ to avoid conflict
+#[cfg(feature = "alloc")]
+fn div_ceil_(a: usize, b: usize) -> usize {
+    let d = a / b;
+    let r = a % b;
+    if r > 0 && b > 0 {
+        d + 1
+    } else {
+        d
+    }
+}
