@@ -453,8 +453,31 @@ where
     }
 }
 
+/// Fuse a future such that `poll` will never again be called once it has
+/// completed. This method can be used to turn any `Future` into a
+/// `FusedFuture`.
+///
+/// Normally, once a future has returned `Poll::Ready` from `poll`,
+/// any further calls could exhibit bad behavior such as blocking
+/// forever, panicking, never returning, etc. If it is known that `poll`
+/// may be called too often then this method can be used to ensure that it
+/// has defined semantics.
+///
+/// If a `fuse`d future is `poll`ed after having returned `Poll::Ready`
+/// previously, it will return `Poll::Pending`, from `poll` again (and will
+/// continue to do so for all future calls to `poll`).
+///
+/// This combinator will drop the underlying future as soon as it has been
+/// completed to ensure resources are reclaimed as soon as possible.
+pub fn fuse<F>(future: F) -> Fuse<F>
+where
+    F: Future + Sized,
+{
+    Fuse::new(future)
+}
+
 pin_project! {
-    /// [`Future`] for the [`fuse`](super::FutureExt::fuse) method.
+    /// [`Future`] for the [`fuse`] method.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct Fuse<Fut> {
@@ -473,13 +496,16 @@ impl<Fut: Future> Future for Fuse<Fut> {
     type Output = Fut::Output;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Fut::Output> {
-        match self.as_mut().project().inner.as_pin_mut() {
-            Some(fut) => fut.poll(cx).map(|output| {
+        self.as_mut()
+            .project()
+            .inner
+            .as_pin_mut()
+            .map(|f| f.poll(cx))
+            .unwrap_or(Poll::Pending)
+            .map(|output| {
                 self.project().inner.set(None);
                 output
-            }),
-            None => Poll::Pending,
-        }
+            })
     }
 }
 
@@ -684,29 +710,6 @@ pub trait FutureExt: Future {
             future1: self,
             future2: other,
         }
-    }
-
-    /// Fuse a future such that `poll` will never again be called once it has
-    /// completed. This method can be used to turn any `Future` into a
-    /// `FusedFuture`.
-    ///
-    /// Normally, once a future has returned `Poll::Ready` from `poll`,
-    /// any further calls could exhibit bad behavior such as blocking
-    /// forever, panicking, never returning, etc. If it is known that `poll`
-    /// may be called too often then this method can be used to ensure that it
-    /// has defined semantics.
-    ///
-    /// If a `fuse`d future is `poll`ed after having returned `Poll::Ready`
-    /// previously, it will return `Poll::Pending`, from `poll` again (and will
-    /// continue to do so for all future calls to `poll`).
-    ///
-    /// This combinator will drop the underlying future as soon as it has been
-    /// completed to ensure resources are reclaimed as soon as possible.
-    fn fuse(self) -> Fuse<Self>
-    where
-        Self: Sized,
-    {
-        Fuse::new(self)
     }
 
     /// Returns the result of `self` or `other` future, with no preference if both are ready.
