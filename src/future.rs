@@ -464,15 +464,8 @@ pin_project! {
 }
 
 impl<Fut> Fuse<Fut> {
-    pub(super) fn new(f: Fut) -> Self {
+    fn new(f: Fut) -> Self {
         Self { inner: Some(f) }
-    }
-}
-
-impl<Fut: Future> Fuse<Fut> {
-    /// Creates a new [`Fuse`]-wrapped [`Future`] which is already terminated.
-    pub fn terminated() -> Self {
-        Self { inner: None }
     }
 }
 
