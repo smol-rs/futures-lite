@@ -1,3 +1,7 @@
+# Version 2.4.0
+
+- Add `StreamExt::take_until` for taking elements from the stream until the provided futures resolved (#99).
+
 # Version 2.3.0
 
 - Add `StreamExt::drain` for draining objects from a `Stream` without waiting (#70).
