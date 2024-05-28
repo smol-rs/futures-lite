@@ -733,6 +733,7 @@ where
     Fut: Future,
 {
     /// Extract the stopping future out of the combinator.
+    /// 
     /// The future is returned only if it isn't resolved yet, ie. if the stream isn't stopped yet.
     /// Taking out the future means the combinator will be yielding
     /// elements from the wrapped stream without ever stopping it.
@@ -779,10 +780,6 @@ where
     /// let result = stream.take_result().unwrap();
     /// assert_eq!(result, "reason");
     /// # });
-    ///
-    ///
-    ///
-    ///
     /// ```
     pub fn take_result(&mut self) -> Option<Fut::Output> {
         self.fut_result.take()
