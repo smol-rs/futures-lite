@@ -733,7 +733,7 @@ where
     Fut: Future,
 {
     /// Extract the stopping future out of the combinator.
-    /// 
+    ///
     /// The future is returned only if it isn't resolved yet, ie. if the stream isn't stopped yet.
     /// Taking out the future means the combinator will be yielding
     /// elements from the wrapped stream without ever stopping it.
@@ -827,7 +827,9 @@ where
             return (0, Some(0));
         }
 
-        self.stream.size_hint()
+        // Original stream can be truncated at any moment, so the lower bound isn't reliable.
+        let (_, upper_bound) = self.stream.size_hint();
+        (0, upper_bound)
     }
 }
 
