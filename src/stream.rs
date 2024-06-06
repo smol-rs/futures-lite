@@ -670,12 +670,12 @@ impl<F: Future> Stream for OnceFuture<F> {
 /// this stream combinator will always return that the stream is done.
 ///
 /// The stopping future may return any type. Once the stream is stopped
-/// the result of the stopping future may be accessed with `TakeUntil::take_result()`.
-/// The stream may also be resumed with `TakeUntil::take_future()`.
-/// See the documentation of [`TakeUntil`] for more information.
+/// the result of the stopping future may be accessed with `StopAfterFuture::take_result()`.
+/// The stream may also be resumed with `StopAfterFuture::take_future()`.
+/// See the documentation of [`StopAfterFuture`] for more information.
 ///
 /// ```
-/// use futures_lite::stream::{self, StreamExt, take_until};
+/// use futures_lite::stream::{self, StreamExt, stop_after_future};
 /// use futures_lite::future;
 /// use std::task::Poll;
 ///
@@ -692,16 +692,16 @@ impl<F: Future> Stream for OnceFuture<F> {
 ///     }
 /// });
 ///
-/// let stream = take_until(stream, stop_fut);
+/// let stream = stop_after_future(stream, stop_fut);
 ///
 /// assert_eq!(vec![1, 2, 3, 4, 5], stream.collect::<Vec<_>>().await);
 /// # });
-pub fn take_until<S, F>(stream: S, future: F) -> TakeUntil<S, F>
+pub fn stop_after_future<S, F>(stream: S, future: F) -> StopAfterFuture<S, F>
 where
     S: Sized + Stream,
     F: Future,
 {
-    TakeUntil {
+    StopAfterFuture {
         stream,
         fut: Some(future),
         fut_result: None,
@@ -710,10 +710,10 @@ where
 }
 
 pin_project! {
-    /// Stream for the [`StreamExt::take_until()`] method.
+    /// Stream for the [`StreamExt::stop_after_future()`] method.
     #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
-    pub struct TakeUntil<S: Stream, Fut: Future> {
+    pub struct StopAfterFuture<S: Stream, Fut: Future> {
         #[pin]
         stream: S,
         // Contains the inner Future on start and None once the inner Future is resolved
@@ -727,7 +727,7 @@ pin_project! {
     }
 }
 
-impl<St, Fut> TakeUntil<St, Fut>
+impl<St, Fut> StopAfterFuture<St, Fut>
 where
     St: Stream,
     Fut: Future,
@@ -758,7 +758,7 @@ where
     ///
     /// ```
     /// # spin_on::spin_on(async {
-    /// use futures_lite::stream::{self, StreamExt, take_until};
+    /// use futures_lite::stream::{self, StreamExt, stop_after_future};
     /// use futures_lite::future;
     /// use std::task::Poll;
     ///
@@ -774,7 +774,7 @@ where
     ///     }
     /// });
     ///
-    /// let mut stream = take_until(stream, stop_fut);
+    /// let mut stream = stop_after_future(stream, stop_fut);
     /// let _ = (&mut stream).collect::<Vec<_>>().await;
     ///
     /// let result = stream.take_result().unwrap();
@@ -792,7 +792,7 @@ where
     }
 }
 
-impl<St, Fut> Stream for TakeUntil<St, Fut>
+impl<St, Fut> Stream for StopAfterFuture<St, Fut>
 where
     St: Stream,
     Fut: Future,
