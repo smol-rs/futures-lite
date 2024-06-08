@@ -1,3 +1,10 @@
+# Version 2.4.0
+
+- Add a "fuse" method that makes it so a `Future` returns `Poll::Pending`
+  forever after it returns `Poll::Pending` once. (#101)
+- Add a "stop_after_future" function that allows for running a `Future` until a
+  `Stream` completes. (#103)
+
 # Version 2.3.0
 
 - Add `StreamExt::drain` for draining objects from a `Stream` without waiting (#70).
