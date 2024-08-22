@@ -259,8 +259,8 @@ where
     F2: Future,
 {
     Zip {
-        future1,
-        future2,
+        future1: Some(future1),
+        future2: Some(future2),
         output1: None,
         output2: None,
     }
@@ -276,10 +276,10 @@ pin_project! {
         F2: Future,
     {
         #[pin]
-        future1: F1,
+        future1: Option<F1>,
         output1: Option<F1::Output>,
         #[pin]
-        future2: F2,
+        future2: Option<F2>,
         output2: Option<F2::Output>,
     }
 }
@@ -304,17 +304,19 @@ where
     type Output = (F1::Output, F2::Output);
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        let mut this = self.project();
 
-        if this.output1.is_none() {
-            if let Poll::Ready(out) = this.future1.poll(cx) {
+        if let Some(future) = this.future1.as_mut().as_pin_mut() {
+            if let Poll::Ready(out) = future.poll(cx) {
                 *this.output1 = Some(out);
+                this.future1.set(None);
             }
         }
 
-        if this.output2.is_none() {
-            if let Poll::Ready(out) = this.future2.poll(cx) {
+        if let Some(future) = this.future2.as_mut().as_pin_mut() {
+            if let Poll::Ready(out) = future.poll(cx) {
                 *this.output2 = Some(out);
+                this.future2.set(None);
             }
         }
 
@@ -342,8 +344,8 @@ where
     F2: Future<Output = Result<T2, E>>,
 {
     TryZip {
-        future1,
-        future2,
+        future1: Some(future1),
+        future2: Some(future2),
         output1: None,
         output2: None,
     }
@@ -355,10 +357,10 @@ pin_project! {
     #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct TryZip<F1, T1, F2, T2> {
         #[pin]
-        future1: F1,
+        future1: Option<F1>,
         output1: Option<T1>,
         #[pin]
-        future2: F2,
+        future2: Option<F2>,
         output2: Option<T2>,
     }
 }
@@ -371,21 +373,27 @@ where
     type Output = Result<(T1, T2), E>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        let mut this = self.project();
 
-        if this.output1.is_none() {
-            if let Poll::Ready(out) = this.future1.poll(cx) {
+        if let Some(future) = this.future1.as_mut().as_pin_mut() {
+            if let Poll::Ready(out) = future.poll(cx) {
                 match out {
-                    Ok(t) => *this.output1 = Some(t),
+                    Ok(t) => {
+                        *this.output1 = Some(t);
+                        this.future1.set(None);
+                    }
                     Err(err) => return Poll::Ready(Err(err)),
                 }
             }
         }
 
-        if this.output2.is_none() {
-            if let Poll::Ready(out) = this.future2.poll(cx) {
+        if let Some(future) = this.future2.as_mut().as_pin_mut() {
+            if let Poll::Ready(out) = future.poll(cx) {
                 match out {
-                    Ok(t) => *this.output2 = Some(t),
+                    Ok(t) => {
+                        *this.output2 = Some(t);
+                        this.future2.set(None);
+                    }
                     Err(err) => return Poll::Ready(Err(err)),
                 }
             }
