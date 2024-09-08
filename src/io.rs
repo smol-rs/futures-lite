@@ -1622,7 +1622,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// let n = reader.read_until(b'\n', &mut buf).await?;
     /// # std::io::Result::Ok(()) });
     /// ```
-    fn read_until<'a>(&'a mut self, byte: u8, buf: &'a mut Vec<u8>) -> ReadUntilFuture<'_, Self>
+    fn read_until<'a>(&'a mut self, byte: u8, buf: &'a mut Vec<u8>) -> ReadUntilFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -1655,7 +1655,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// let n = reader.read_line(&mut line).await?;
     /// # std::io::Result::Ok(()) });
     /// ```
-    fn read_line<'a>(&'a mut self, buf: &'a mut String) -> ReadLineFuture<'_, Self>
+    fn read_line<'a>(&'a mut self, buf: &'a mut String) -> ReadLineFuture<'a, Self>
     where
         Self: Unpin,
     {
