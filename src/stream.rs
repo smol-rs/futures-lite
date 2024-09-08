@@ -1446,7 +1446,7 @@ pub trait StreamExt: Stream {
 
     /// Maps items of the stream to new values using a state value and a closure.
     ///
-    /// Scanning begins with the inital state set to `initial_state`, and then applies `f` to the
+    /// Scanning begins with the initial state set to `initial_state`, and then applies `f` to the
     /// state and each item in the stream. The stream stops when `f` returns `None`.
     ///
     /// # Examples
