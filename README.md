@@ -17,7 +17,11 @@ warts in its API, fills in some obvious gaps, and removes almost all unsafe code
 In short, this crate aims to be more enjoyable than [futures] but still fully compatible with
 it.
 
+The API for this crate is intentionally constrained. Please consult the 
+[features list] for APIs that are occluded from this crate.
+
 [futures]: https://docs.rs/futures
+[features list]: https://github.com/smol-rs/futures-lite/blob/master/FEATURES.md
 
 ## Examples
 
