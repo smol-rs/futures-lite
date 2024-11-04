@@ -1692,7 +1692,7 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// ```
     fn lines(self) -> Lines<Self>
     where
-        Self: Unpin + Sized,
+        Self: Sized,
     {
         Lines {
             reader: self,
