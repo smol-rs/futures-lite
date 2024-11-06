@@ -1,3 +1,7 @@
+# Version 2.5.0
+
+- Remove `Unpin` bound from the `Lines` I/O adapter. (#113)
+
 # Version 2.4.0
 
 - Add a "fuse" method that makes it so a `Future` returns `Poll::Pending`
