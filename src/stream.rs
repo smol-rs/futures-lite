@@ -1137,6 +1137,33 @@ pub trait StreamExt: Stream {
         }
     }
 
+    /// Maps items while `predicate` returns [`Some`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::stream::{self, StreamExt};
+    ///
+    /// # spin_on::spin_on(async {
+    /// let s = stream::iter(vec![1, 2, 0, 3]);
+    /// let mut s = s.map_while(|x: u32| x.checked_sub(1));
+    ///
+    /// assert_eq!(s.next().await, Some(0));
+    /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, None);
+    /// # });
+    /// ```
+    fn map_while<B, P>(self, predicate: P) -> MapWhile<Self, P>
+    where
+        Self: Sized,
+        P: FnMut(Self::Item) -> Option<B>,
+    {
+        MapWhile {
+            stream: self,
+            predicate,
+        }
+    }
+
     /// Skips the first `n` items of the stream.
     ///
     /// # Examples
@@ -2785,6 +2812,34 @@ where
                     Poll::Ready(None)
                 }
             }
+            None => Poll::Ready(None),
+        }
+    }
+}
+
+pin_project! {
+    /// Stream for the [`StreamExt::map_while()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct MapWhile<S, P> {
+        #[pin]
+        stream: S,
+        predicate: P,
+    }
+}
+
+impl<B, S, P> Stream for MapWhile<S, P>
+where
+    S: Stream,
+    P: FnMut(S::Item) -> Option<B>,
+{
+    type Item = B;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+
+        match ready!(this.stream.poll_next(cx)) {
+            Some(v) => Poll::Ready((this.predicate)(v)),
             None => Poll::Ready(None),
         }
     }
