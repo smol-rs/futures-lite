@@ -1139,6 +1139,10 @@ pub trait StreamExt: Stream {
 
     /// Maps items while `predicate` returns [`Some`].
     ///
+    /// This stream is not fused. After the predicate returns [`None`] the stream still
+    /// contains remaining items that can be obtained by subsequent `next` calls.
+    /// You can [`fuse`](StreamExt::fuse) the stream if this behavior is undesirable.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1150,6 +1154,10 @@ pub trait StreamExt: Stream {
     ///
     /// assert_eq!(s.next().await, Some(0));
     /// assert_eq!(s.next().await, Some(1));
+    /// assert_eq!(s.next().await, None);
+    ///
+    /// // Continue to iterate the stream.
+    /// assert_eq!(s.next().await, Some(2));
     /// assert_eq!(s.next().await, None);
     /// # });
     /// ```
