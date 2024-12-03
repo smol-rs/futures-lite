@@ -2299,9 +2299,9 @@ pub struct TryFoldFuture<'a, S, F, B> {
     acc: Option<B>,
 }
 
-impl<'a, S, F, B> Unpin for TryFoldFuture<'a, S, F, B> {}
+impl<S, F, B> Unpin for TryFoldFuture<'_, S, F, B> {}
 
-impl<'a, T, E, S, F, B> Future for TryFoldFuture<'a, S, F, B>
+impl<T, E, S, F, B> Future for TryFoldFuture<'_, S, F, B>
 where
     S: Stream<Item = Result<T, E>> + Unpin,
     F: FnMut(B, T) -> Result<B, E>,
@@ -3137,7 +3137,7 @@ pub struct NthFuture<'a, S: ?Sized> {
 
 impl<S: Unpin + ?Sized> Unpin for NthFuture<'_, S> {}
 
-impl<'a, S> Future for NthFuture<'a, S>
+impl<S> Future for NthFuture<'_, S>
 where
     S: Stream + Unpin + ?Sized,
 {
@@ -3191,7 +3191,7 @@ pub struct FindFuture<'a, S: ?Sized, P> {
 
 impl<S: Unpin + ?Sized, P> Unpin for FindFuture<'_, S, P> {}
 
-impl<'a, S, P> Future for FindFuture<'a, S, P>
+impl<S, P> Future for FindFuture<'_, S, P>
 where
     S: Stream + Unpin + ?Sized,
     P: FnMut(&S::Item) -> bool,
@@ -3219,7 +3219,7 @@ pub struct FindMapFuture<'a, S: ?Sized, F> {
 
 impl<S: Unpin + ?Sized, F> Unpin for FindMapFuture<'_, S, F> {}
 
-impl<'a, S, B, F> Future for FindMapFuture<'a, S, F>
+impl<S, B, F> Future for FindMapFuture<'_, S, F>
 where
     S: Stream + Unpin + ?Sized,
     F: FnMut(S::Item) -> Option<B>,
@@ -3249,9 +3249,9 @@ pub struct PositionFuture<'a, S: ?Sized, P> {
     index: usize,
 }
 
-impl<'a, S: Unpin + ?Sized, P> Unpin for PositionFuture<'a, S, P> {}
+impl<S: Unpin + ?Sized, P> Unpin for PositionFuture<'_, S, P> {}
 
-impl<'a, S, P> Future for PositionFuture<'a, S, P>
+impl<S, P> Future for PositionFuture<'_, S, P>
 where
     S: Stream + Unpin + ?Sized,
     P: FnMut(S::Item) -> bool,
@@ -3373,9 +3373,9 @@ pub struct TryForEachFuture<'a, S: ?Sized, F> {
     f: F,
 }
 
-impl<'a, S: Unpin + ?Sized, F> Unpin for TryForEachFuture<'a, S, F> {}
+impl<S: Unpin + ?Sized, F> Unpin for TryForEachFuture<'_, S, F> {}
 
-impl<'a, S, F, E> Future for TryForEachFuture<'a, S, F>
+impl<S, F, E> Future for TryForEachFuture<'_, S, F>
 where
     S: Stream + Unpin + ?Sized,
     F: FnMut(S::Item) -> Result<(), E>,
@@ -3467,7 +3467,7 @@ pub struct Drain<'a, S: ?Sized> {
     stream: &'a mut S,
 }
 
-impl<'a, S: Unpin + ?Sized> Unpin for Drain<'a, S> {}
+impl<S: Unpin + ?Sized> Unpin for Drain<'_, S> {}
 
 impl<'a, S: Unpin + ?Sized> Drain<'a, S> {
     /// Get a reference to the underlying stream.
@@ -3528,7 +3528,7 @@ impl<'a, S: Unpin + ?Sized> Drain<'a, S> {
     }
 }
 
-impl<'a, S: Stream + Unpin + ?Sized> Stream for Drain<'a, S> {
+impl<S: Stream + Unpin + ?Sized> Stream for Drain<'_, S> {
     type Item = S::Item;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
