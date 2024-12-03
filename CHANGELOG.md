@@ -1,3 +1,8 @@
+# Version 2.6.0
+
+- Add `Stream::map_while()` combinator. (#116)
+- Add list of excluded features to crate documentation. (#112)
+
 # Version 2.5.0
 
 - Remove `Unpin` bound from the `Lines` I/O adapter. (#113)
