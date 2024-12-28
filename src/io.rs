@@ -2070,8 +2070,6 @@ pub trait AsyncReadExt: AsyncRead {
 
     /// Reads the exact number of bytes required to fill `buf`.
     ///
-    /// On success, returns the total number of bytes read.
-    ///
     /// # Examples
     ///
     /// ```
