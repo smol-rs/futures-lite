@@ -616,6 +616,128 @@ where
     }
 }
 
+/// Creates a stream from an async function.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::stream::{self, StreamExt};
+///
+/// # spin_on::spin_on(async {
+/// let mut n = 0;
+/// let s = stream::from_fn(|| {
+///     let prev = n;
+///
+///     // Mutates the state inside the closure.
+///     n += 1;
+///
+///     // Moves `i32` state into the future.
+///     async move {
+///         if prev < 2 {
+///             Some(prev)
+///         } else {
+///             None
+///         }
+///     }
+/// });
+///
+/// let v: Vec<i32> = s.collect().await;
+/// assert_eq!(v, [0, 1]);
+/// # })
+/// ```
+///
+/// Note that we borrow the state as `&mut i32` and mutate it
+/// inside the closure, but not inside the future.
+///
+/// By default, this function takes
+/// `impl FnMut() -> impl Future<Output = Option<T>>`. This signature doesn't
+/// allow to return a future that borrow a state *from the closure*.
+///
+/// # Async closures
+///
+/// While this limitations can be circumvented using types like `Rc/Arc` to
+/// avoid references and types with interior mutability to allow mutate a
+/// state, it's much easier to use [async closures](std::ops::AsyncFnMut).
+/// It requires Rust 1.85 or later and the `async-closure` feature must
+/// be enabled.
+///
+/// Then the function takes `impl AsyncFnMut() -> Option<T>` and you can
+/// directly use async closures:
+///
+/// ```rust,ignore
+/// use futures_lite::stream::{self, StreamExt};
+///
+/// # spin_on::spin_on(async {
+/// // Assume the feature is enabled.
+/// #[cfg(feature = "async-closure")]
+/// {
+///     let mut n = 0;
+///     let s = stream::from_fn(async || {
+///         if n < 2 {
+///             let prev = n;
+///
+///             // Mutates the state inside the future.
+///             n += 1;
+///             Some(prev)
+///         } else {
+///             None
+///         }
+///     });
+///
+///     let v: Vec<i32> = s.collect().await;
+///     assert_eq!(v, [0, 1]);
+/// }
+/// # })
+/// ```
+pub fn from_fn<F, T>(f: F) -> impl Stream<Item = T>
+where
+    F: private::AsyncClosure<Option<T>>,
+{
+    unfold(f, |mut f| async {
+        let item = f.call().await?;
+        Some((item, f))
+    })
+}
+
+#[cfg(feature = "async-closure")]
+mod private {
+    use std::future::Future;
+
+    pub trait AsyncClosure<R> {
+        fn call(&mut self) -> impl Future<Output = R>;
+    }
+
+    impl<R, F> AsyncClosure<R> for F
+    where
+        F: AsyncFnMut() -> R,
+    {
+        fn call(&mut self) -> impl Future<Output = R> {
+            self()
+        }
+    }
+}
+
+#[cfg(not(feature = "async-closure"))]
+mod private {
+    use std::future::Future;
+
+    pub trait AsyncClosure<R> {
+        type Future: Future<Output = R>;
+        fn call(&mut self) -> Self::Future;
+    }
+
+    impl<R, F, Fut> AsyncClosure<R> for F
+    where
+        F: FnMut() -> Fut,
+        Fut: Future<Output = R>,
+    {
+        type Future = Fut;
+        fn call(&mut self) -> Self::Future {
+            self()
+        }
+    }
+}
+
 /// Creates a stream that invokes the given future as its first item, and then
 /// produces no more items.
 ///
