@@ -657,7 +657,7 @@ where
 ///
 /// While this limitations can be circumvented using types like `Rc/Arc` to
 /// avoid references and types with interior mutability to allow mutate a
-/// state, it's much easier to use [async closures](std::ops::AsyncFnMut).
+/// state, it's much easier to use [async closures](core::ops::AsyncFnMut).
 /// It requires Rust 1.85 or later and the `async-closure` feature must
 /// be enabled.
 ///
@@ -701,7 +701,7 @@ where
 
 #[cfg(feature = "async-closure")]
 mod private {
-    use std::future::Future;
+    use core::future::Future;
 
     pub trait AsyncClosure<R> {
         fn call(&mut self) -> impl Future<Output = R>;
@@ -719,7 +719,7 @@ mod private {
 
 #[cfg(not(feature = "async-closure"))]
 mod private {
-    use std::future::Future;
+    use core::future::Future;
 
     pub trait AsyncClosure<R> {
         type Future: Future<Output = R>;
