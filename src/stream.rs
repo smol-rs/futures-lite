@@ -702,6 +702,7 @@ where
 #[cfg(feature = "async-closure")]
 mod private {
     use core::future::Future;
+    use core::ops::AsyncFnMut;
 
     pub trait AsyncClosure<R> {
         fn call(&mut self) -> impl Future<Output = R>;
