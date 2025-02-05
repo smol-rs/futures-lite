@@ -664,7 +664,7 @@ where
 /// Then the function takes `impl AsyncFnMut() -> Option<T>` and you can
 /// directly use async closures:
 ///
-/// ```rust,ignore
+/// ```rust
 /// use futures_lite::stream::{self, StreamExt};
 ///
 /// # spin_on::spin_on(async {
