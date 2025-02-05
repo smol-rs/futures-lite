@@ -56,6 +56,7 @@ jobs:
       - run: cargo test
       - run: cargo test --no-default-features
       - run: cargo test --no-default-features --features alloc
+      - run: cargo test --all-features
 
   msrv:
     runs-on: ubuntu-latest
