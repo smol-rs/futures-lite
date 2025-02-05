@@ -667,23 +667,26 @@ where
 /// ```rust
 /// use futures_lite::stream::{self, StreamExt};
 ///
-/// # spin_on::spin_on(async {
-/// let mut n = 0;
-/// let s = stream::from_fn(async || {
-///     if n < 2 {
-///         let prev = n;
+/// #[cfg(feature = "async-closure")]
+/// {
+/// #   spin_on::spin_on(async {
+///     let mut n = 0;
+///     let s = stream::from_fn(async || {
+///         if n < 2 {
+///             let prev = n;
 ///
-///         // Mutates the state inside the future.
-///         n += 1;
-///         Some(prev)
-///     } else {
-///         None
-///     }
-/// });
+///             // Mutates the state inside the future.
+///             n += 1;
+///             Some(prev)
+///         } else {
+///             None
+///         }
+///     });
 ///
-/// let v: Vec<i32> = s.collect().await;
-/// assert_eq!(v, [0, 1]);
-/// # })
+///     let v: Vec<i32> = s.collect().await;
+///     assert_eq!(v, [0, 1]);
+/// #   })
+/// }
 /// ```
 pub fn from_fn<F, T>(f: F) -> impl Stream<Item = T>
 where
