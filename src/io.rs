@@ -1906,9 +1906,12 @@ fn read_line_internal<R: AsyncBufRead + ?Sized>(
 
     match String::from_utf8(mem::take(bytes)) {
         Ok(s) => {
-            debug_assert!(buf.is_empty());
             debug_assert_eq!(*read, 0);
-            *buf = s;
+            if buf.is_empty() {
+                *buf = s;
+            } else {
+                buf.push_str(&s);
+            }
             Poll::Ready(ret)
         }
         Err(_) => Poll::Ready(ret.and_then(|_| {
@@ -3095,4 +3098,19 @@ use memchr::memchr;
 #[cfg(not(feature = "memchr"))]
 fn memchr(needle: u8, haystack: &[u8]) -> Option<usize> {
     haystack.iter().position(|&b| b == needle)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AsyncBufReadExt;
+
+    #[test]
+    fn non_empty_buffer() {
+        spin_on::spin_on(async {
+            let mut bytes = "foo".as_bytes();
+            let mut buf = String::from("bar");
+            bytes.read_line(&mut buf).await.unwrap();
+            assert_eq!(&buf, "barfoo");
+        });
+    }
 }
