@@ -20,23 +20,21 @@ pub use core::future::{pending, ready, Future, Pending, Ready};
 
 use core::fmt;
 use core::pin::Pin;
+use core::task::{Context, Poll};
 
-use pin_project_lite::pin_project;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 
 #[cfg(feature = "std")]
 use std::{
     any::Any,
-    boxed::Box,
     panic::{catch_unwind, AssertUnwindSafe, UnwindSafe},
     thread_local,
 };
 
 #[cfg(feature = "race")]
 use fastrand::Rng;
-
-#[cfg(all(not(feature = "std"), feature = "alloc"))]
-use alloc::boxed::Box;
-use core::task::{Context, Poll};
+use pin_project_lite::pin_project;
 
 /// Blocks the current thread on a future.
 ///
