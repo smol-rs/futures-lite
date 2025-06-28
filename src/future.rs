@@ -15,9 +15,6 @@
 //! # });
 //! ```
 
-#[cfg(all(not(feature = "std"), feature = "alloc"))]
-extern crate alloc;
-
 #[doc(no_inline)]
 pub use core::future::{pending, ready, Future, Pending, Ready};
 
