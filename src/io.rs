@@ -21,14 +21,18 @@ pub use std::io::{Error, ErrorKind, Result, SeekFrom};
 pub use futures_io::{AsyncBufRead, AsyncRead, AsyncSeek, AsyncWrite};
 
 use std::borrow::{Borrow, BorrowMut};
+use std::boxed::Box;
 use std::cmp;
 use std::fmt;
 use std::future::Future;
 use std::io::{IoSlice, IoSliceMut};
 use std::mem;
 use std::pin::Pin;
+use std::string::String;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
+use std::vec;
+use std::vec::Vec;
 
 use futures_core::stream::Stream;
 use pin_project_lite::pin_project;

@@ -29,7 +29,9 @@ use pin_project_lite::pin_project;
 #[cfg(feature = "std")]
 use std::{
     any::Any,
+    boxed::Box,
     panic::{catch_unwind, AssertUnwindSafe, UnwindSafe},
+    thread_local,
 };
 
 #[cfg(feature = "race")]
