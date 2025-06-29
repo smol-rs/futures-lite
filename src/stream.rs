@@ -634,7 +634,7 @@ pub fn once_future<F: Future>(future: F) -> OnceFuture<F> {
 }
 
 pin_project! {
-    /// Stream for the [`once_future()`] method.
+    /// Stream for the [`once_future()`] function.
     #[derive(Debug)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct OnceFuture<F> {
@@ -707,7 +707,7 @@ where
 }
 
 pin_project! {
-    /// Stream for the [`StreamExt::stop_after_future()`] method.
+    /// Stream for the [`stop_after_future()`] function.
     #[derive(Clone, Debug)]
     #[must_use = "streams do nothing unless polled"]
     pub struct StopAfterFuture<S: Stream, Fut: Future> {
