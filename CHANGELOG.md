@@ -1,3 +1,7 @@
+# Version 2.6.1
+
+- Fix docs for `once_future` and `stop_after_future`. (#131)
+
 # Version 2.6.0
 
 - Add `Stream::map_while()` combinator. (#116)
