@@ -1,7 +1,7 @@
 //! Futures, streams, and async I/O combinators.
 //!
 //! This crate is a subset of [futures] that compiles an order of magnitude faster, fixes minor
-//! warts in its API, fills in some obvious gaps, and removes almost all unsafe code from it.
+//! warts in its API, fills in some obvious gaps, and removes all unsafe code from it.
 //!
 //! In short, this crate aims to be more enjoyable than [futures] but still fully compatible with
 //! it.
@@ -35,6 +35,7 @@
     html_logo_url = "https://raw.githubusercontent.com/smol-rs/smol/master/assets/images/logo_fullsize_transparent.png"
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![forbid(unsafe_code)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -137,11 +138,7 @@ macro_rules! ready {
 macro_rules! pin {
     ($($x:ident),* $(,)?) => {
         $(
-            let mut $x = $x;
-            #[allow(unused_mut)]
-            let mut $x = unsafe {
-                core::pin::Pin::new_unchecked(&mut $x)
-            };
+            let mut $x = ::core::pin::pin!($x);
         )*
     }
 }
