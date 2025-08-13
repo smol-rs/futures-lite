@@ -1652,11 +1652,17 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     /// use futures_lite::io::{AsyncBufReadExt, BufReader};
     ///
     /// # spin_on::spin_on(async {
-    /// let input: &[u8] = b"hello";
+    /// let input: &[u8] = b"hello\nworld";
     /// let mut reader = BufReader::new(input);
     ///
     /// let mut line = String::new();
     /// let n = reader.read_line(&mut line).await?;
+    /// assert_eq!(n, 6);
+    /// assert_eq!(line, "hello\n");
+    ///
+    /// let n = reader.read_line(&mut line).await?;
+    /// assert_eq!(n, 5);
+    /// assert_eq!(line, "hello\nworld");
     /// # std::io::Result::Ok(()) });
     /// ```
     fn read_line<'a>(&'a mut self, buf: &'a mut String) -> ReadLineFuture<'a, Self>
@@ -1665,8 +1671,8 @@ pub trait AsyncBufReadExt: AsyncBufRead {
     {
         ReadLineFuture {
             reader: self,
+            bytes: mem::take(buf).into_bytes(),
             buf,
-            bytes: Vec::new(),
             read: 0,
         }
     }
