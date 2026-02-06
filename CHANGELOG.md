@@ -1,3 +1,10 @@
+# Version 2.7.0
+
+- Bump MSRV to 1.68. (#135)
+- Fix `stream::Race` to return `None` if both combined streams return `None`. (#138)
+- Fix `read_line` panic on non-empty buffer. (#141)
+- Fix docs.rs build. (#139)
+
 # Version 2.6.1
 
 - Fix docs for `once_future` and `stop_after_future`. (#131)
