@@ -1971,6 +1971,37 @@ pub trait StreamExt: Stream {
         }
     }
 
+    /// Merges with `other` stream, preferring items from `self` whenever both streams are ready
+    /// until the 'self' stream is exhausted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use futures_lite::stream::{self, StreamExt};
+    /// use futures_lite::stream::{empty, once, pending};
+    ///
+    /// # spin_on::spin_on(async {
+    /// assert_eq!(once(1).fallback(pending()).next().await, Some(1));
+    /// assert_eq!(pending().fallback(once(2)).next().await, Some(2));
+    ///
+    /// // The first future wins.
+    /// assert_eq!(once(1).fallback(once(2)).next().await, Some(1));
+    ///
+    /// // No longer falling back when the first stream ends
+    /// assert_eq!(empty().fallback(once(1)).next().await, None);
+    /// # })
+    /// ```
+    fn fallback<S>(self, other: S) -> Fallback<Self, S>
+    where
+        Self: Sized,
+        S: Stream<Item = Self::Item>,
+    {
+        Fallback {
+            stream1: self,
+            stream2: other,
+        }
+    }
+
     /// Merges with `other` stream, with no preference for either stream when both are ready.
     ///
     /// # Examples
@@ -2660,6 +2691,62 @@ where
 
         if let Poll::Ready(Some(t)) = this.stream1.as_mut().poll_next(cx) {
             return Poll::Ready(Some(t));
+        }
+        this.stream2.as_mut().poll_next(cx)
+    }
+}
+
+/// Merges two streams, preferring items from `stream1` whenever both streams are ready
+/// until 'stream1' is exhausted.
+///
+/// # Examples
+///
+/// ```
+/// use futures_lite::stream::{self, empty, once, pending, StreamExt};
+///
+/// # spin_on::spin_on(async {
+/// assert_eq!(stream::fallback(once(1), pending()).next().await, Some(1));
+/// assert_eq!(stream::fallback(pending(), once(2)).next().await, Some(2));
+///
+/// // The first stream wins.
+/// assert_eq!(stream::fallback(once(1), once(2)).next().await, Some(1));
+///
+/// // No longer falling back when the first stream ends
+/// assert_eq!(empty().fallback(once(1)).next().await, None);
+/// # })
+/// ```
+pub fn fallback<T, S1, S2>(stream1: S1, stream2: S2) -> Fallback<S1, S2>
+where
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
+{
+    Fallback { stream1, stream2 }
+}
+
+pin_project! {
+    /// Stream for the [`or()`] function and the [`StreamExt::or()`] method.
+    #[derive(Clone, Debug)]
+    #[must_use = "streams do nothing unless polled"]
+    pub struct Fallback<S1, S2> {
+        #[pin]
+        stream1: S1,
+        #[pin]
+        stream2: S2,
+    }
+}
+
+impl<T, S1, S2> Stream for Fallback<S1, S2>
+where
+    S1: Stream<Item = T>,
+    S2: Stream<Item = T>,
+{
+    type Item = T;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        if let Poll::Ready(item) = this.stream1.as_mut().poll_next(cx) {
+            return Poll::Ready(item);
         }
         this.stream2.as_mut().poll_next(cx)
     }
