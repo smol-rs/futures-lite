@@ -662,6 +662,7 @@ pin_project! {
     /// reader.read_line(&mut line).await?;
     /// # std::io::Result::Ok(()) });
     /// ```
+    #[derive(Clone)]
     pub struct BufReader<R> {
         #[pin]
         inner: R,
