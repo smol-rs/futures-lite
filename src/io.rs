@@ -1813,7 +1813,10 @@ fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
 ) -> Poll<Result<usize>> {
     loop {
         let (done, used) = {
-            let available = ready!(reader.as_mut().poll_fill_buf(cx))?;
+            let available = ready!(reader.as_mut().poll_fill_buf(cx)).map_err(|e| {
+                *read = 0;
+                e
+            })?;
 
             if let Some(i) = memchr(byte, available) {
                 buf.extend_from_slice(&available[..=i]);
@@ -3108,7 +3111,48 @@ fn memchr(needle: u8, haystack: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::AsyncBufReadExt;
+    use super::{AsyncBufReadExt, AsyncRead, BufReader, ErrorKind, Result};
+    use crate::StreamExt;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+
+    struct FailsMidLine {
+        sent: bool,
+    }
+
+    impl AsyncRead for FailsMidLine {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<Result<usize>> {
+            if self.sent {
+                return Poll::Ready(Err(ErrorKind::ConnectionReset.into()));
+            }
+            self.sent = true;
+            buf[..3].copy_from_slice(b"foo");
+            Poll::Ready(Ok(3))
+        }
+    }
+
+    #[test]
+    fn read_line_error_mid_line() {
+        spin_on::spin_on(async {
+            let mut reader = BufReader::new(FailsMidLine { sent: false });
+            let mut buf = std::string::String::new();
+            let err = reader.read_line(&mut buf).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConnectionReset);
+        });
+    }
+
+    #[test]
+    fn lines_error_mid_line() {
+        spin_on::spin_on(async {
+            let mut lines = BufReader::new(FailsMidLine { sent: false }).lines();
+            let err = lines.next().await.unwrap().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConnectionReset);
+        });
+    }
 
     #[test]
     fn non_empty_buffer() {
